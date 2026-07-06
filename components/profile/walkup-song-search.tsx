@@ -1,16 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { BORDER, COLORS, FONTS, RADII } from '@/constants/style';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
+import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { useThemeColors } from '@/contexts/theme-context';
 import { searchSongs, type ItunesTrack } from '@/lib/itunes';
 
 type Props = {
@@ -18,6 +11,9 @@ type Props = {
 };
 
 export function WalkupSongSearch({ onSelect }: Props) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ItunesTrack[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,12 +64,12 @@ export function WalkupSongSearch({ onSelect }: Props) {
         <TextInput
           style={styles.input}
           placeholder="search for your walk-up song"
-          placeholderTextColor="#8A8378"
+          placeholderTextColor={colors.textSecondary}
           value={query}
           onChangeText={setQuery}
           onFocus={() => results.length > 0 && setOpen(true)}
         />
-        {loading ? <ActivityIndicator color={COLORS.ink} style={styles.spinner} /> : null}
+        {loading ? <ActivityIndicator color={colors.textSecondary} style={styles.spinner} /> : null}
       </View>
 
       {failed ? <Text style={styles.hint}>Search whiffed. Try again.</Text> : null}
@@ -82,7 +78,7 @@ export function WalkupSongSearch({ onSelect }: Props) {
         <View style={styles.dropdown}>
           <ScrollView style={styles.dropdownList} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             {results.map((item) => (
-              <Pressable
+              <AnimatedPressable
                 key={item.trackId}
                 style={styles.resultRow}
                 onPress={() => {
@@ -104,7 +100,7 @@ export function WalkupSongSearch({ onSelect }: Props) {
                     {item.artistName}
                   </Text>
                 </View>
-              </Pressable>
+              </AnimatedPressable>
             ))}
           </ScrollView>
         </View>
@@ -113,40 +109,35 @@ export function WalkupSongSearch({ onSelect }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  inputWrap: {
-    borderWidth: BORDER.width,
-    borderColor: COLORS.ink,
-    borderRadius: RADII.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 10,
-    backgroundColor: COLORS.white,
-  },
-  input: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontFamily: FONTS.body,
-    fontSize: 15,
-    color: COLORS.ink,
-  },
-  spinner: { marginRight: 4 },
-  hint: { marginTop: 6, fontFamily: FONTS.body, color: COLORS.ink, opacity: 0.6, fontSize: 13 },
-  dropdown: {
-    borderWidth: BORDER.width,
-    borderColor: COLORS.ink,
-    borderRadius: RADII.sm,
-    marginTop: 6,
-    maxHeight: 260,
-    overflow: 'hidden',
-    backgroundColor: COLORS.white,
-  },
-  dropdownList: { maxHeight: 260 },
-  resultRow: { flexDirection: 'row', alignItems: 'center', padding: 8, gap: 10 },
-  artwork: { width: 40, height: 40, borderRadius: 6, backgroundColor: '#ccc' },
-  artworkFallback: {},
-  resultText: { flex: 1 },
-  trackName: { fontFamily: FONTS.bodyBold, fontSize: 14, color: COLORS.ink },
-  artist: { fontFamily: FONTS.body, color: COLORS.ink, opacity: 0.6, fontSize: 13 },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    inputWrap: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingRight: 10,
+      backgroundColor: colors.background,
+    },
+    input: { flex: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.text },
+    spinner: { marginRight: 4 },
+    hint: { marginTop: 6, color: colors.textSecondary, fontSize: 13 },
+    dropdown: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.md,
+      marginTop: 6,
+      maxHeight: 260,
+      overflow: 'hidden',
+      backgroundColor: colors.background,
+    },
+    dropdownList: { maxHeight: 260 },
+    resultRow: { flexDirection: 'row', alignItems: 'center', padding: 8, gap: 10 },
+    artwork: { width: 40, height: 40, borderRadius: RADII.sm, backgroundColor: colors.borderSoft },
+    artworkFallback: {},
+    resultText: { flex: 1 },
+    trackName: { fontWeight: WEIGHT.semibold, fontSize: 14, color: colors.text },
+    artist: { color: colors.textSecondary, fontSize: 13 },
+  });
+}

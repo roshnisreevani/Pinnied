@@ -1,24 +1,23 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
+import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColors } from '@/contexts/theme-context';
 
 export default function AuthScreen() {
   const { signIn, signUp } = useAuth();
-  const colorScheme = useColorScheme();
-  const palette = Colors[colorScheme ?? 'light'];
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -51,28 +50,24 @@ export default function AuthScreen() {
     }
 
     if (isSignup) {
-      setNotice('Check your inbox to confirm your email, then log in.');
+      setNotice('Check your inbox to confirm your email, then sign in.');
       setMode('login');
     }
   };
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ThemedView style={styles.container}>
-        <ThemedText type="title" style={styles.title}>
-          The Rec
-        </ThemedText>
-        <ThemedText style={styles.subtitle}>
-          {isSignup
-            ? 'New here? Come make some questionable athletic memories.'
-            : 'Welcome back, legend.'}
-        </ThemedText>
+      <View style={styles.container}>
+        <View style={styles.brand}>
+          <Text style={styles.wordmark}>the rec</Text>
+          <Text style={styles.tagline}>never live down the airball.</Text>
+        </View>
 
         <View style={styles.form}>
           <TextInput
-            style={[styles.input, { color: palette.text, borderColor: palette.icon }]}
+            style={styles.input}
             placeholder="you@example.com"
-            placeholderTextColor="#888"
+            placeholderTextColor={colors.textSecondary}
             autoCapitalize="none"
             autoComplete="email"
             keyboardType="email-address"
@@ -80,62 +75,69 @@ export default function AuthScreen() {
             onChangeText={setEmail}
           />
           <TextInput
-            style={[styles.input, { color: palette.text, borderColor: palette.icon }]}
-            placeholder="password (make it a good one)"
-            placeholderTextColor="#888"
+            style={styles.input}
+            placeholder="password"
+            placeholderTextColor={colors.textSecondary}
             secureTextEntry
             autoCapitalize="none"
             value={password}
             onChangeText={setPassword}
           />
 
-          {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
-          {notice ? <ThemedText style={styles.notice}>{notice}</ThemedText> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
-          <Pressable
-            style={[styles.button, { backgroundColor: palette.tint }, submitting && styles.buttonDisabled]}
+          <AnimatedPressable
+            style={[styles.button, submitting && styles.buttonDisabled]}
             onPress={handleSubmit}
             disabled={submitting}>
             {submitting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={ON_ACCENT} />
             ) : (
-              <ThemedText style={styles.buttonText}>{isSignup ? 'Sign up' : 'Log in'}</ThemedText>
+              <Text style={styles.buttonText}>{isSignup ? 'Create Account' : 'Sign In'}</Text>
             )}
-          </Pressable>
+          </AnimatedPressable>
 
-          <Pressable onPress={() => setMode(isSignup ? 'login' : 'signup')} hitSlop={8}>
-            <ThemedText style={[styles.switchText, { color: palette.tint }]}>
-              {isSignup ? 'Already have an account? Log in' : "Don't have an account? Sign up"}
-            </ThemedText>
-          </Pressable>
+          <AnimatedPressable onPress={() => setMode(isSignup ? 'login' : 'signup')} hitSlop={8} haptic={false}>
+            <Text style={styles.switchText}>
+              {isSignup ? 'Already have an account? Sign in' : "Don't have an account? Create Account"}
+            </Text>
+          </AnimatedPressable>
         </View>
-      </ThemedView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  container: { flex: 1, justifyContent: 'center', padding: 24 },
-  title: { textAlign: 'center' },
-  subtitle: { textAlign: 'center', marginTop: 8, marginBottom: 28, opacity: 0.7 },
-  form: { gap: 12 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  error: { color: '#d92626', textAlign: 'center' },
-  notice: { color: '#2f9e44', textAlign: 'center' },
-  button: {
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  switchText: { textAlign: 'center', marginTop: 8 },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, justifyContent: 'center', padding: 24 },
+    brand: { alignItems: 'center', marginBottom: 40 },
+    wordmark: { fontSize: 34, fontWeight: WEIGHT.bold, color: colors.coral },
+    tagline: { fontSize: 14, color: colors.textSecondary, marginTop: 6 },
+    form: { gap: 12 },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.md,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+    error: { color: colors.danger, textAlign: 'center', fontSize: 13 },
+    notice: { color: colors.text, textAlign: 'center', fontSize: 13 },
+    button: {
+      borderRadius: RADII.md,
+      paddingVertical: 14,
+      alignItems: 'center',
+      marginTop: 8,
+      backgroundColor: colors.coral,
+    },
+    buttonDisabled: { opacity: 0.6 },
+    buttonText: { color: ON_ACCENT, fontWeight: WEIGHT.bold, fontSize: 16 },
+    switchText: { textAlign: 'center', marginTop: 8, color: colors.textSecondary, fontSize: 13 },
+  });
+}

@@ -1,0 +1,30 @@
+import { supabase } from '@/lib/supabase';
+
+export type UserSettings = {
+  notifyGroupActivity: boolean;
+  notifyBanterReplies: boolean;
+  locationPrivacyApproximate: boolean;
+};
+
+type SettingsColumn = 'notify_group_activity' | 'notify_banter_replies' | 'location_privacy_approximate';
+
+export async function fetchSettings(userId: string): Promise<UserSettings> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('notify_group_activity, notify_banter_replies, location_privacy_approximate')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return {
+    notifyGroupActivity: data?.notify_group_activity ?? true,
+    notifyBanterReplies: data?.notify_banter_replies ?? true,
+    locationPrivacyApproximate: data?.location_privacy_approximate ?? false,
+  };
+}
+
+export async function updateSetting(userId: string, column: SettingsColumn, value: boolean): Promise<void> {
+  const { error } = await supabase.from('profiles').update({ [column]: value }).eq('id', userId);
+  if (error) throw error;
+}

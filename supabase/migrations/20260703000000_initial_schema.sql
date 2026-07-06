@@ -1,6 +1,7 @@
 -- The Rec — Profile tab schema
--- Run this once in your Supabase project's SQL Editor:
--- https://supabase.com/dashboard/project/dtrjnvbldzyqjtbuceou/sql/new
+-- Applied to the linked project via `supabase db push`.
+-- (A copy of this also lives at supabase/schema.sql for manual pasting into
+-- the SQL Editor, if you'd rather do it that way instead of the CLI.)
 
 -- 1. Profiles table -----------------------------------------------------
 
@@ -154,57 +155,7 @@ create policy "Users can delete their own avatar"
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
--- 4. Trophy awards (self-nominated vs. friend-awarded trophies) ---------
--- Trophies themselves stay stored as jsonb on public.profiles — the Trophy
--- object shape just grows two optional fields (awarded_by / awarded_by_name)
--- on the client. What needs a real table is the "send someone a pending
--- trophy" step, since a user can't write directly into another user's
--- profiles.trophies jsonb column under RLS. A pending award lives here until
--- the recipient accepts (client then copies it into their own profile's
--- trophies array) or declines (row just gets marked declined).
-
-create table if not exists public.trophy_awards (
-  id uuid primary key default gen_random_uuid(),
-  from_user_id uuid not null references auth.users on delete cascade,
-  to_user_id uuid not null references auth.users on delete cascade,
-  icon text not null,
-  title text not null,
-  subtitle text not null default '',
-  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
-  created_at timestamptz not null default now(),
-  responded_at timestamptz
-);
-
-create index if not exists trophy_awards_to_user_idx on public.trophy_awards (to_user_id, status);
-
-alter table public.trophy_awards enable row level security;
-
-drop policy if exists "Awards are viewable by sender or recipient" on public.trophy_awards;
-create policy "Awards are viewable by sender or recipient"
-  on public.trophy_awards for select
-  using ( auth.uid() = from_user_id or auth.uid() = to_user_id );
-
-drop policy if exists "Users can send awards" on public.trophy_awards;
-create policy "Users can send awards"
-  on public.trophy_awards for insert
-  with check ( auth.uid() = from_user_id and from_user_id <> to_user_id );
-
-drop policy if exists "Recipient can respond to their pending awards" on public.trophy_awards;
-create policy "Recipient can respond to their pending awards"
-  on public.trophy_awards for update
-  using ( auth.uid() = to_user_id )
-  with check ( auth.uid() = to_user_id );
-
-drop policy if exists "Sender can withdraw an award they sent" on public.trophy_awards;
-create policy "Sender can withdraw an award they sent"
-  on public.trophy_awards for delete
-  using ( auth.uid() = from_user_id );
-
--- Note: the "Profiles are viewable by everyone" policy above already lets the
--- award-sender search other users by name and lets the recipient's name be
--- shown on the pending award card — no additional profiles policy needed.
-
--- 5. Account deletion --------------------------------------------------
+-- 4. Account deletion --------------------------------------------------
 -- Deleting a user's storage files and their auth.users record both require
 -- the service role key, which must never ship inside the app — so the whole
 -- delete flow (storage cleanup, then the auth user, which cascades to the

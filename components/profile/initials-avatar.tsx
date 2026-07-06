@@ -1,17 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { ACCENT_ROTATION, BORDER, FONTS, textOnAccent } from '@/constants/style';
-
-function colorForName(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return ACCENT_ROTATION[0];
-
-  let hash = 0;
-  for (let i = 0; i < trimmed.length; i++) {
-    hash = trimmed.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return ACCENT_ROTATION[Math.abs(hash) % ACCENT_ROTATION.length];
-}
+import { useThemeColors } from '@/contexts/theme-context';
+import { WEIGHT } from '@/constants/style';
 
 function initialsForName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -26,28 +16,21 @@ type Props = {
 };
 
 export function InitialsAvatar({ name, size = 76 }: Props) {
-  const backgroundColor = colorForName(name);
+  const colors = useThemeColors();
   const initials = initialsForName(name);
 
   return (
     <View
       style={[
         styles.circle,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor },
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.text },
       ]}>
-      <Text style={[styles.text, { fontSize: size * 0.34, color: textOnAccent(backgroundColor) }]}>
-        {initials}
-      </Text>
+      <Text style={[styles.text, { fontSize: size * 0.34, color: colors.background }]}>{initials}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  circle: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: BORDER.width,
-    borderColor: BORDER.color,
-  },
-  text: { fontFamily: FONTS.bodyBold },
+  circle: { alignItems: 'center', justifyContent: 'center' },
+  text: { fontWeight: WEIGHT.bold },
 });

@@ -1,7 +1,11 @@
+import { Pause, Play } from 'lucide-react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { BORDER, COLORS, FONTS, RADII } from '@/constants/style';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
+import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { useThemeColors } from '@/contexts/theme-context';
 import type { WalkupSong } from '@/lib/profile';
 
 type Props = {
@@ -9,6 +13,9 @@ type Props = {
 };
 
 export function WalkupSongPlayer({ song }: Props) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const player = useAudioPlayer(song.previewUrl);
   const status = useAudioPlayerStatus(player);
 
@@ -43,38 +50,39 @@ export function WalkupSongPlayer({ song }: Props) {
           <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
         </View>
       </View>
-      <Pressable style={styles.playButton} onPress={toggle}>
-        <Text style={styles.playIcon}>{status.playing ? '❚❚' : '▶'}</Text>
-      </Pressable>
+      <AnimatedPressable style={styles.playButton} onPress={toggle}>
+        {status.playing ? (
+          <Pause size={16} color={ON_ACCENT} fill={ON_ACCENT} />
+        ) : (
+          <Play size={16} color={ON_ACCENT} fill={ON_ACCENT} />
+        )}
+      </AnimatedPressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  artwork: { width: 56, height: 56, borderRadius: RADII.sm, borderWidth: BORDER.width, borderColor: COLORS.ink },
-  artworkFallback: { backgroundColor: '#ccc' },
-  info: { flex: 1, gap: 5 },
-  title: { fontFamily: FONTS.bodyBold, fontSize: 14, color: COLORS.ink },
-  artist: { fontFamily: FONTS.body, color: COLORS.ink, opacity: 0.6, fontSize: 13 },
-  progressTrack: {
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: COLORS.cream,
-    borderWidth: 1.5,
-    borderColor: COLORS.ink,
-    overflow: 'hidden',
-  },
-  progressFill: { height: '100%', backgroundColor: COLORS.blue },
-  playButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: BORDER.width,
-    borderColor: COLORS.ink,
-    backgroundColor: COLORS.coral,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playIcon: { color: COLORS.white, fontSize: 14 },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    artwork: { width: 56, height: 56, borderRadius: RADII.md, backgroundColor: colors.borderSoft },
+    artworkFallback: {},
+    info: { flex: 1, gap: 5 },
+    title: { fontWeight: WEIGHT.semibold, fontSize: 14, color: colors.text },
+    artist: { color: colors.textSecondary, fontSize: 13 },
+    progressTrack: {
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.borderSoft,
+      overflow: 'hidden',
+    },
+    progressFill: { height: '100%', backgroundColor: colors.coral },
+    playButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.coral,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
+}

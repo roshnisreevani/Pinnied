@@ -20,6 +20,11 @@ export type Trophy = {
   icon: string;
   title: string;
   subtitle: string;
+  // Optional longer joke/backstory shown on the back of the trophy when flipped.
+  story?: string;
+  // At most one trophy across the whole case should have this set — it's the
+  // user's self-declared all-time best, rendered bigger with a gold glow.
+  legendary?: boolean;
 };
 
 export type Profile = {

@@ -1,6 +1,10 @@
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Plus } from 'lucide-react-native';
+import { useMemo } from 'react';
+import { Image, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { BORDER, COLORS, FONTS, RADII } from '@/constants/style';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
+import { RADII, type ThemeColors } from '@/constants/style';
+import { useThemeColors } from '@/contexts/theme-context';
 import type { PickThreeItem } from '@/lib/profile';
 
 export type PickThreeSlot = {
@@ -25,6 +29,9 @@ type ViewProps = {
 type Props = EditProps | ViewProps;
 
 export function PickThreeField(props: Props) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   if (props.editing) {
     const { slots, onPickPhoto, onCaptionChange } = props;
     return (
@@ -33,24 +40,24 @@ export function PickThreeField(props: Props) {
           const slot = slots[index] ?? { uri: null, caption: '' };
           return (
             <View key={index} style={styles.column}>
-              <Pressable
+              <AnimatedPressable
                 style={[styles.square, !slot.uri && styles.squareEmpty]}
                 onPress={() => onPickPhoto(index)}>
                 {slot.uri ? (
                   <Image source={{ uri: slot.uri }} style={styles.image} />
                 ) : (
-                  <Text style={styles.plusIcon}>+</Text>
+                  <Plus size={26} color={colors.textSecondary} strokeWidth={1.75} />
                 )}
                 {slot.uri ? (
                   <View style={styles.changeBadge}>
                     <Text style={styles.changeBadgeText}>change</Text>
                   </View>
                 ) : null}
-              </Pressable>
+              </AnimatedPressable>
               <TextInput
                 style={styles.captionInput}
                 placeholder={PLACEHOLDER_CAPTIONS[index]}
-                placeholderTextColor="#8A8378"
+                placeholderTextColor={colors.textSecondary}
                 value={slot.caption}
                 onChangeText={(text) => onCaptionChange(index, text)}
               />
@@ -85,50 +92,48 @@ export function PickThreeField(props: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 10 },
-  column: { flex: 1, gap: 6 },
-  square: {
-    aspectRatio: 1,
-    borderWidth: BORDER.width,
-    borderColor: COLORS.ink,
-    borderRadius: RADII.md,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.white,
-  },
-  squareEmpty: { borderStyle: 'dashed' },
-  image: { width: '100%', height: '100%' },
-  plusIcon: { fontFamily: FONTS.bodyBold, fontSize: 28, color: COLORS.ink, opacity: 0.5 },
-  emptyIcon: { fontSize: 20, color: COLORS.ink, opacity: 0.35 },
-  changeBadge: {
-    position: 'absolute',
-    bottom: 4,
-    alignSelf: 'center',
-    backgroundColor: COLORS.ink,
-    borderRadius: RADII.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  changeBadgeText: { color: COLORS.cream, fontFamily: FONTS.bodyBold, fontSize: 10 },
-  captionInput: {
-    borderWidth: 1.5,
-    borderColor: COLORS.ink,
-    borderRadius: RADII.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    fontFamily: FONTS.body,
-    fontSize: 12,
-    color: COLORS.ink,
-    backgroundColor: COLORS.white,
-  },
-  captionText: {
-    fontFamily: FONTS.body,
-    fontSize: 12,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    color: COLORS.ink,
-    opacity: 0.8,
-  },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    row: { flexDirection: 'row', gap: 10 },
+    column: { flex: 1, gap: 6 },
+    square: {
+      aspectRatio: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.lg,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+    },
+    squareEmpty: { borderStyle: 'dashed' },
+    image: { width: '100%', height: '100%' },
+    emptyIcon: { fontSize: 20, color: colors.textSecondary, opacity: 0.6 },
+    changeBadge: {
+      position: 'absolute',
+      bottom: 4,
+      alignSelf: 'center',
+      backgroundColor: colors.text,
+      borderRadius: RADII.sm,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    changeBadgeText: { color: colors.background, fontWeight: '700', fontSize: 10 },
+    captionInput: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.sm,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      fontSize: 12,
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+    captionText: {
+      fontSize: 12,
+      textAlign: 'center',
+      fontStyle: 'italic',
+      color: colors.textSecondary,
+    },
+  });
+}

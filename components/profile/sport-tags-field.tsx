@@ -1,7 +1,10 @@
+import { X } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { ACCENT_ROTATION, BORDER, COLORS, FONTS, RADII, textOnAccent } from '@/constants/style';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
+import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { useThemeColors } from '@/contexts/theme-context';
 import { SPORTS, type SportTag } from '@/lib/sports';
 
 const MAX_SUGGESTIONS = 20;
@@ -17,6 +20,8 @@ function labelFor(value: SportTag): string {
 }
 
 export function SportTagsField({ editing, selected, onToggle }: Props) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [query, setQuery] = useState('');
 
   const suggestions = useMemo(() => {
@@ -34,21 +39,16 @@ export function SportTagsField({ editing, selected, onToggle }: Props) {
           {editing ? 'Nothing picked yet — search below.' : 'No sports claimed yet. Bold strategy.'}
         </Text>
       ) : (
-        selected.map((value, index) => {
-          const accent = ACCENT_ROTATION[index % ACCENT_ROTATION.length];
-          return (
-            <Pressable
-              key={value}
-              disabled={!editing}
-              onPress={() => onToggle?.(value)}
-              style={[styles.pill, { backgroundColor: accent }]}>
-              <Text style={[styles.pillText, { color: textOnAccent(accent) }]}>
-                {labelFor(value)}
-                {editing ? '  ×' : ''}
-              </Text>
-            </Pressable>
-          );
-        })
+        selected.map((value) => (
+          <AnimatedPressable
+            key={value}
+            disabled={!editing}
+            onPress={() => onToggle?.(value)}
+            style={styles.pill}>
+            <Text style={styles.pillText}>{labelFor(value)}</Text>
+            {editing ? <X size={13} color={colors.text} strokeWidth={2.25} /> : null}
+          </AnimatedPressable>
+        ))
       )}
     </View>
   );
@@ -62,7 +62,7 @@ export function SportTagsField({ editing, selected, onToggle }: Props) {
       <TextInput
         style={styles.searchInput}
         placeholder="search sports, hobbies, activities…"
-        placeholderTextColor="#8A8378"
+        placeholderTextColor={colors.textSecondary}
         value={query}
         onChangeText={setQuery}
       />
@@ -71,7 +71,7 @@ export function SportTagsField({ editing, selected, onToggle }: Props) {
         suggestions.length > 0 ? (
           <View style={styles.wrap}>
             {suggestions.map((s) => (
-              <Pressable
+              <AnimatedPressable
                 key={s.value}
                 onPress={() => {
                   onToggle?.(s.value);
@@ -79,7 +79,7 @@ export function SportTagsField({ editing, selected, onToggle }: Props) {
                 }}
                 style={styles.suggestionPill}>
                 <Text style={styles.suggestionPillText}>+ {s.label}</Text>
-              </Pressable>
+              </AnimatedPressable>
             ))}
           </View>
         ) : (
@@ -90,37 +90,41 @@ export function SportTagsField({ editing, selected, onToggle }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { gap: 10 },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: {
-    borderWidth: BORDER.width,
-    borderColor: COLORS.ink,
-    borderRadius: RADII.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-  },
-  pillText: { fontFamily: FONTS.bodyBold, fontSize: 13 },
-  suggestionPill: {
-    borderWidth: 1.5,
-    borderColor: COLORS.ink,
-    borderStyle: 'dashed',
-    borderRadius: RADII.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: COLORS.white,
-  },
-  suggestionPillText: { fontFamily: FONTS.bodyMedium, fontSize: 12, color: COLORS.ink },
-  searchInput: {
-    borderWidth: 1.5,
-    borderColor: COLORS.ink,
-    borderRadius: RADII.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontFamily: FONTS.body,
-    fontSize: 14,
-    color: COLORS.ink,
-    backgroundColor: COLORS.white,
-  },
-  empty: { fontFamily: FONTS.body, fontStyle: 'italic', color: COLORS.ink, opacity: 0.6, fontSize: 13 },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: { gap: 10 },
+    wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      borderWidth: 1.5,
+      borderColor: colors.coral,
+      borderRadius: RADII.pill,
+      paddingHorizontal: 13,
+      paddingVertical: 7,
+      backgroundColor: colors.background,
+    },
+    pillText: { fontWeight: WEIGHT.semibold, fontSize: 13, color: colors.text },
+    suggestionPill: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.pill,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      backgroundColor: colors.background,
+    },
+    suggestionPillText: { fontWeight: WEIGHT.medium, fontSize: 12, color: colors.textSecondary },
+    searchInput: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.md,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      fontSize: 14,
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+    empty: { fontStyle: 'italic', color: colors.textSecondary, fontSize: 13 },
+  });
+}

@@ -1,7 +1,9 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Camera } from 'lucide-react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
-import { BORDER, COLORS } from '@/constants/style';
+import { AnimatedPressable } from '@/components/ui/animated-pressable';
+import { useThemeColors } from '@/contexts/theme-context';
 
 type Props = {
   name: string;
@@ -11,45 +13,57 @@ type Props = {
   onPress?: () => void;
 };
 
+const RING_WIDTH = 3;
+const RING_GAP = 3;
+
 export function ProfileAvatar({ name, photoUri, size = 76, editable, onPress }: Props) {
+  const colors = useThemeColors();
+
   const content = photoUri ? (
-    <Image
-      source={{ uri: photoUri }}
-      style={[
-        styles.photo,
-        { width: size, height: size, borderRadius: size / 2 },
-      ]}
-    />
+    <Image source={{ uri: photoUri }} style={{ width: size, height: size, borderRadius: size / 2 }} />
   ) : (
     <InitialsAvatar name={name} size={size} />
   );
 
-  if (!editable) return content;
+  const ringSize = size + (RING_WIDTH + RING_GAP) * 2;
+
+  const avatar = (
+    <View
+      style={[
+        styles.ring,
+        { width: ringSize, height: ringSize, borderRadius: ringSize / 2, borderColor: colors.coral },
+      ]}>
+      {content}
+    </View>
+  );
+
+  if (!editable) return avatar;
 
   return (
-    <Pressable onPress={onPress} hitSlop={6}>
-      {content}
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>📸</Text>
+    <AnimatedPressable onPress={onPress} hitSlop={6}>
+      {avatar}
+      <View style={[styles.badge, { backgroundColor: colors.text, borderColor: colors.background }]}>
+        <Camera size={13} color={colors.background} strokeWidth={2} />
       </View>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
-  photo: { borderWidth: BORDER.width, borderColor: BORDER.color },
-  badge: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: COLORS.mustard,
-    borderWidth: 2,
-    borderColor: COLORS.ink,
+  ring: {
+    borderWidth: RING_WIDTH,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { fontSize: 12 },
+  badge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

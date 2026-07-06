@@ -9,7 +9,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "The Rec uses your photo library so you can set a profile photo and pick your Pick Your 3 pictures.",
+        "NSCameraUsageDescription": "The Rec uses your camera so you can take a new profile photo directly.",
+        "NSPhotoLibraryAddUsageDescription": "The Rec can save your share card and QR code to your photos when you tap Save."
+      }
     },
     "android": {
       "adaptiveIcon": {
