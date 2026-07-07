@@ -1,11 +1,14 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { Bell, Flame, Settings, UserPlus } from 'lucide-react-native';
+import { Bell, Flame, Settings } from 'lucide-react-native';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PickThreeField } from '@/components/profile/pick-three-field';
+import { GroupsBadge } from '@/components/profile/groups-badge';
+import { PennieBadge } from '@/components/profile/pennie-badge';
+import { SportsBadge } from '@/components/profile/sports-badge';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { QrShareModal } from '@/components/profile/qr-share-modal';
 import { SportTagsField } from '@/components/profile/sport-tags-field';
@@ -15,8 +18,7 @@ import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
-import { fetchConnectionsCount } from '@/lib/connections';
-import { MOCK_GAMES_COUNT, MOCK_GROUPS_COUNT, MOCK_STREAK_WEEKS } from '@/lib/mock-stats';
+import { MOCK_GAMES_COUNT, MOCK_GROUPS_COUNT, MOCK_STREAK_WEEKS, MOCK_PENNIES_COUNT } from '@/lib/mock-stats';
 import { emptyProfile, fetchProfile, saveProfile, type Profile, type Trophy } from '@/lib/profile';
 
 function generateId(): string {
@@ -33,7 +35,6 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [shareOpen, setShareOpen] = useState(false);
-  const [connectionsCount, setConnectionsCount] = useState(0);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -45,13 +46,6 @@ export default function ProfileScreen() {
       setProfile(emptyProfile(userId));
     } finally {
       setLoading(false);
-    }
-
-    try {
-      const count = await fetchConnectionsCount(userId);
-      setConnectionsCount(count);
-    } catch {
-      // Non-critical — the stat just stays at its last known value.
     }
   }, [userId]);
 
@@ -132,9 +126,6 @@ export default function ProfileScreen() {
             {profile.name || 'Nameless legend'}
           </Text>
           <View style={styles.topIcons}>
-            <AnimatedPressable hitSlop={8} onPress={() => router.push('/requests')}>
-              <UserPlus size={22} color={colors.text} strokeWidth={1.75} />
-            </AnimatedPressable>
             <AnimatedPressable hitSlop={8} onPress={() => Alert.alert('Notifications', 'Nothing new yet.')}>
               <Bell size={22} color={colors.text} strokeWidth={1.75} />
             </AnimatedPressable>
@@ -163,10 +154,9 @@ export default function ProfileScreen() {
         <View style={styles.avatarSection}>
           <ProfileAvatar name={profile.name} photoUri={profile.avatarUrl} size={84} />
           <View style={styles.statRow}>
-            <Stat value={profile.trophies.length} label="trophies" styles={styles} />
-            <Stat value={connectionsCount} label="connections" styles={styles} />
-            <Stat value={MOCK_GROUPS_COUNT} label="groups" styles={styles} />
-            <Stat value={MOCK_GAMES_COUNT} label="games" styles={styles} />
+            <PennieBadge count={MOCK_PENNIES_COUNT} />
+            <GroupsBadge count={MOCK_GROUPS_COUNT} />
+            <SportsBadge count={MOCK_GAMES_COUNT} />
           </View>
         </View>
 
@@ -187,17 +177,6 @@ export default function ProfileScreen() {
             <Text style={styles.primaryButtonText}>Share</Text>
           </AnimatedPressable>
         </View>
-
-        {/* Trophy case */}
-        <Section title="Trophy Case" styles={styles}>
-          <TrophyCase
-            editing
-            trophies={profile.trophies}
-            onAdd={handleAddTrophy}
-            onUpdate={handleUpdateTrophy}
-            onRemove={handleRemoveTrophy}
-          />
-        </Section>
 
         {/* Pick Your 3 — now the sole primary section here since walk-up song moved up top */}
         <Section title="Pick Your 3" styles={styles}>
