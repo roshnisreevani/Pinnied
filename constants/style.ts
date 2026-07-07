@@ -64,3 +64,11 @@ export const ON_ACCENT = '#FFFFFF';
 // legendary slot, Feed's Post of the Week badge). Theme-independent
 // for the same reason as ON_ACCENT above.
 export const GOLD = '#D4AF37';
+
+// Fixed near-black "locker room" surface used by Feed's session headers,
+// transition cards, and end-of-feed card — these are deliberately dark in
+// both light and dark mode (a consistent "tunnel" break between sessions),
+// so like ON_ACCENT/GOLD this doesn't come from the theme palette.
+export const DARK_SURFACE = '#14141A';
+export const ON_DARK_SURFACE = '#FFFFFF';
+export const ON_DARK_SURFACE_SECONDARY = '#9A968C';

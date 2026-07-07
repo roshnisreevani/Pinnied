@@ -1,16 +1,18 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Search } from 'lucide-react-native';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CommentsModal } from '@/components/feed/comments-modal';
-import { PostCard } from '@/components/feed/post-card';
+import { FeedCarousel } from '@/components/feed/feed-carousel';
+import { FeedEndCard } from '@/components/feed/feed-end-card';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
+import { useReactionStreak } from '@/lib/feed-streak';
 import { blockUser, reportContent, type ReportReason } from '@/lib/moderation';
 import { computePostOfWeekId, deletePost, fetchFeed, setReaction, totalReactions, type Post } from '@/lib/posts';
 import { HOT_THRESHOLD, type ReactionType } from '@/lib/reactions';
@@ -26,22 +28,14 @@ export default function FeedScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
-  const knownIdsRef = useRef<Set<string> | null>(null);
-  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+
+  const { streak, onLeavePost } = useReactionStreak();
 
   const load = useCallback(
     async (isRefresh = false) => {
       if (isRefresh) setRefreshing(true);
       try {
         const fetched = await fetchFeed(userId);
-
-        if (knownIdsRef.current) {
-          const prevIds = knownIdsRef.current;
-          const freshIds = new Set(fetched.filter((p) => !prevIds.has(p.id)).map((p) => p.id));
-          setNewIds(freshIds);
-        }
-        knownIdsRef.current = new Set(fetched.map((p) => p.id));
-
         setPosts(fetched);
       } catch (e) {
         Alert.alert('Could not load Feed', e instanceof Error ? e.message : 'Unknown error.');
@@ -61,6 +55,9 @@ export default function FeedScreen() {
 
   const postOfWeekId = useMemo(() => computePostOfWeekId(posts), [posts]);
   const commentsPost = posts.find((p) => p.id === commentsPostId) ?? null;
+
+  const isHot = useCallback((post: Post) => totalReactions(post) >= HOT_THRESHOLD, []);
+  const isPostOfWeek = useCallback((post: Post) => post.id === postOfWeekId, [postOfWeekId]);
 
   const handleToggleReaction = async (postId: string, type: ReactionType) => {
     if (!userId) return;
@@ -166,35 +163,37 @@ export default function FeedScreen() {
         </AnimatedPressable>
       </View>
 
-      <FlatList
-        data={posts}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.text} />
-        }
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            Nothing on Feed yet. Tap the + tab to post the first play of the week.
-          </Text>
-        }
-        renderItem={({ item }) =>
-          userId ? (
-            <PostCard
-              post={item}
-              currentUserId={userId}
-              isHot={totalReactions(item) >= HOT_THRESHOLD}
-              isPostOfWeek={item.id === postOfWeekId}
-              isNew={newIds.has(item.id)}
-              onToggleReaction={(type) => handleToggleReaction(item.id, type)}
-              onOpenComments={() => setCommentsPostId(item.id)}
-              onDelete={() => handleDeletePost(item)}
-              onReport={(reason) => handleReportPost(item, reason)}
-              onBlock={() => handleBlockUser(item)}
-            />
-          ) : null
-        }
-      />
+      {userId ? (
+        <ScrollView
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.text} />
+          }
+          showsVerticalScrollIndicator={false}>
+          {posts.length === 0 ? (
+            <Text style={styles.empty}>
+              Nothing on Feed yet. Tap the + tab to post the first play of the week.
+            </Text>
+          ) : (
+            <>
+              <FeedCarousel
+                posts={posts}
+                currentUserId={userId}
+                isHot={isHot}
+                isPostOfWeek={isPostOfWeek}
+                streak={streak}
+                onLeavePost={onLeavePost}
+                onToggleReaction={handleToggleReaction}
+                onOpenComments={(postId) => setCommentsPostId(postId)}
+                onDelete={handleDeletePost}
+                onReport={handleReportPost}
+                onBlock={handleBlockUser}
+              />
+              <FeedEndCard />
+            </>
+          )}
+        </ScrollView>
+      ) : null}
 
       {userId ? (
         <CommentsModal
@@ -223,7 +222,7 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 12,
     },
     headerTitle: { fontSize: 20, fontWeight: WEIGHT.bold, color: colors.text },
-    list: { paddingHorizontal: 16, paddingBottom: 40 },
+    list: { paddingBottom: 40 },
     empty: {
       marginTop: 60,
       textAlign: 'center',
