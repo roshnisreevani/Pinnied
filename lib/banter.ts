@@ -21,6 +21,7 @@ export type ChatMessage = {
   senderName: string;
   senderAvatarUrl: string | null;
   content: string;
+  imageUrl: string | null;
   createdAt: string;
 };
 
@@ -138,7 +139,7 @@ export async function fetchConversationInfo(conversationId: string, userId: stri
 export async function fetchMessages(conversationId: string): Promise<ChatMessage[]> {
   const { data, error } = await supabase
     .from('messages')
-    .select('id, sender_id, content, created_at, profiles(name, avatar_url)')
+    .select('id, sender_id, content, image_url, created_at, profiles(name, avatar_url)')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
     .limit(100);
@@ -149,6 +150,7 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
     id: string;
     sender_id: string;
     content: string;
+    image_url: string | null;
     created_at: string;
     profiles: { name: string | null; avatar_url: string | null } | null;
   }>)
@@ -158,15 +160,21 @@ export async function fetchMessages(conversationId: string): Promise<ChatMessage
       senderName: row.profiles?.name?.trim() || 'Nameless legend',
       senderAvatarUrl: row.profiles?.avatar_url ?? null,
       content: row.content,
+      imageUrl: row.image_url ?? null,
       createdAt: row.created_at,
     }))
     .reverse();
 }
 
-export async function sendMessage(conversationId: string, senderId: string, content: string): Promise<void> {
+export async function sendMessage(
+  conversationId: string,
+  senderId: string,
+  content: string,
+  imageUrl?: string | null
+): Promise<void> {
   const { error } = await supabase
     .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: senderId, content });
+    .insert({ conversation_id: conversationId, sender_id: senderId, content, image_url: imageUrl ?? null });
   if (error) throw error;
 }
 

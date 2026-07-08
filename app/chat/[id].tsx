@@ -1,4 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
+import { Image as ExpoImage } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, MoreHorizontal, Send } from 'lucide-react-native';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -255,6 +256,14 @@ export default function ChatScreen() {
                 delayLongPress={350}>
                 <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
                   {isGroupChat && !mine ? <Text style={styles.senderName}>{item.senderName}</Text> : null}
+                  {item.imageUrl ? (
+                    <ExpoImage
+                      source={{ uri: item.imageUrl }}
+                      style={styles.bubbleImage}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                    />
+                  ) : null}
                   <Text style={mine ? styles.bubbleTextMine : styles.bubbleTextTheirs}>{item.content}</Text>
                   <Text style={mine ? styles.bubbleTimeMine : styles.bubbleTimeTheirs}>
                     {messageTimeLabel(item.createdAt)}
@@ -312,7 +321,8 @@ function makeStyles(colors: ThemeColors) {
     bubbleRow: { flexDirection: 'row' },
     bubbleRowMine: { justifyContent: 'flex-end' },
     bubbleRowTheirs: { justifyContent: 'flex-start' },
-    bubble: { maxWidth: '78%', borderRadius: RADII.lg, paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
+    bubble: { maxWidth: '78%', borderRadius: RADII.lg, paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+    bubbleImage: { width: 200, height: 200, borderRadius: RADII.md, backgroundColor: colors.borderSoft },
     bubbleMine: { backgroundColor: colors.coral },
     bubbleTheirs: { borderWidth: 1, borderColor: colors.border },
     senderName: { fontSize: 11, fontWeight: WEIGHT.bold, color: colors.coral },
