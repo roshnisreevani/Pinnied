@@ -1,14 +1,12 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { Bell, Flame, Settings, UserPlus } from 'lucide-react-native';
+import { Bell, Flame, MapPin, Settings, UserPlus, Users } from 'lucide-react-native';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PickThreeField } from '@/components/profile/pick-three-field';
-import { GroupsBadge } from '@/components/profile/groups-badge';
-import { PennieBadge } from '@/components/profile/pennie-badge';
-import { SportsBadge } from '@/components/profile/sports-badge';
+import { PinnieIcon } from '@/components/profile/pinnie-icon';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { QrShareModal } from '@/components/profile/qr-share-modal';
 import { SportTagsField } from '@/components/profile/sport-tags-field';
@@ -19,7 +17,9 @@ import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { fetchReceivedRequestsCount } from '@/lib/connections';
-import { MOCK_GAMES_COUNT, MOCK_GROUPS_COUNT, MOCK_STREAK_WEEKS, MOCK_PENNIES_COUNT } from '@/lib/mock-stats';
+import { fetchFollowCounts } from '@/lib/follows';
+import { fetchMyGroupsCount } from '@/lib/groups';
+import { MOCK_STREAK_WEEKS } from '@/lib/mock-stats';
 import { fetchUnreadNotificationCount } from '@/lib/notifications';
 import { emptyProfile, fetchProfile, saveProfile, type Profile, type Trophy } from '@/lib/profile';
 
@@ -39,6 +39,8 @@ export default function ProfileScreen() {
   const [shareOpen, setShareOpen] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
+  const [groupsCount, setGroupsCount] = useState(0);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -61,6 +63,17 @@ export default function ProfileScreen() {
     }
     try {
       setUnreadNotificationsCount(await fetchUnreadNotificationCount(userId));
+    } catch {
+      // Non-critical.
+    }
+    // Stat-row counts — same non-fatal treatment as the badges above.
+    try {
+      setFollowCounts(await fetchFollowCounts(userId));
+    } catch {
+      // Non-critical.
+    }
+    try {
+      setGroupsCount(await fetchMyGroupsCount(userId));
     } catch {
       // Non-critical.
     }
@@ -167,32 +180,57 @@ export default function ProfileScreen() {
           <Text style={styles.streakText}>{MOCK_STREAK_WEEKS}-week streak</Text>
         </View>
 
-        {/* Walk-up song — compact row right under the name/streak */}
-        <View style={styles.songRowWrap}>
-          {profile.walkupSong ? (
+        {/* Walk-up song — compact row right under the name/streak; renders
+            nothing at all (no placeholder, no spacing) when unset */}
+        {profile.walkupSong ? (
+          <View style={styles.songRowWrap}>
             <WalkupSongRow song={profile.walkupSong} />
-          ) : (
-            <Text style={styles.placeholderText}>No walk-up song yet — biggest character flaw, honestly.</Text>
-          )}
-        </View>
+          </View>
+        ) : null}
 
-        {/* Avatar + stat row */}
-        <View style={styles.avatarSection}>
-          <ProfileAvatar name={profile.name} photoUri={profile.avatarUrl} size={84} />
+        {/* Profile block: avatar left, location/bio/sports right, stat row under */}
+        <View style={styles.profileCard}>
+          <View style={styles.profileCardTop}>
+            <ProfileAvatar name={profile.name} photoUri={profile.avatarUrl} size={96} />
+            <View style={styles.profileCardInfo}>
+              <View style={styles.locationRow}>
+                <MapPin size={14} color={colors.textSecondary} strokeWidth={1.75} />
+                <Text style={styles.location} numberOfLines={2}>
+                  {profile.location || 'Location unknown (probably local)'}
+                </Text>
+              </View>
+              <Text style={[styles.bio, !profile.legend && styles.placeholderText]}>
+                {profile.legend || 'peaked in 8th grade, still showing up'}
+              </Text>
+              <SportTagsField editing={false} selected={profile.sportTags} />
+            </View>
+          </View>
+
           <View style={styles.statRow}>
-            <PennieBadge count={MOCK_PENNIES_COUNT} />
-            <GroupsBadge count={MOCK_GROUPS_COUNT} />
-            <SportsBadge count={MOCK_GAMES_COUNT} />
+            <StatItem
+              icon={<PinnieIcon size={17} color={colors.blue} />}
+              value={followCounts.followers}
+              label="Followers"
+              onPress={() => router.push('/follows?tab=followers')}
+              styles={styles}
+            />
+            <View style={styles.statDivider} />
+            <StatItem
+              icon={<PinnieIcon size={17} color={colors.coral} />}
+              value={followCounts.following}
+              label="Following"
+              onPress={() => router.push('/follows?tab=following')}
+              styles={styles}
+            />
+            <View style={styles.statDivider} />
+            <StatItem
+              icon={<Users size={17} color={colors.text} strokeWidth={1.75} />}
+              value={groupsCount}
+              label="Groups"
+              styles={styles}
+            />
           </View>
         </View>
-
-        <Text style={styles.location}>{profile.location || 'Location unknown (probably local)'}</Text>
-
-        <Text style={[styles.bio, !profile.legend && styles.placeholderText]}>
-          {profile.legend || 'peaked in 8th grade, still showing up'}
-        </Text>
-
-        <SportTagsField editing={false} selected={profile.sportTags} />
 
         {/* Edit profile + Share */}
         <View style={styles.actionRow}>
@@ -234,12 +272,31 @@ function IconBadge({ count, color, styles }: { count: number; color: string; sty
   );
 }
 
-function Stat({ value, label, styles }: { value: number; label: string; styles: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={styles.stat}>
+function StatItem({
+  icon,
+  value,
+  label,
+  onPress,
+  styles,
+}: {
+  icon: ReactNode;
+  value: number;
+  label: string;
+  onPress?: () => void;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const content = (
+    <>
+      {icon}
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </>
+  );
+  if (!onPress) return <View style={styles.stat}>{content}</View>;
+  return (
+    <AnimatedPressable style={styles.stat} onPress={onPress} hitSlop={4}>
+      {content}
+    </AnimatedPressable>
   );
 }
 
@@ -297,13 +354,25 @@ function makeStyles(colors: ThemeColors) {
     },
     streakText: { fontSize: 12, fontWeight: WEIGHT.semibold, color: colors.text },
     songRowWrap: { marginTop: 14 },
-    avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 18 },
-    statRow: { flex: 1, flexDirection: 'row', justifyContent: 'space-around' },
-    stat: { alignItems: 'center' },
-    statValue: { fontSize: 18, fontWeight: WEIGHT.bold, color: colors.text },
-    statLabel: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
-    location: { marginTop: 14, fontSize: 14, color: colors.textSecondary },
-    bio: { marginTop: 8, fontSize: 15, fontStyle: 'italic', color: colors.text },
+    // Bare content block — no card surface/border, just the avatar+info row
+    // and the stat row sitting directly on the page background.
+    profileCard: {
+      marginTop: 18,
+      gap: 14,
+    },
+    profileCardTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    profileCardInfo: { flex: 1, gap: 6 },
+    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    statRow: {
+      flexDirection: 'row',
+      alignItems: 'stretch',
+    },
+    stat: { flex: 1, alignItems: 'center', gap: 2 },
+    statDivider: { width: 1, backgroundColor: colors.border },
+    statValue: { fontSize: 17, fontWeight: WEIGHT.bold, color: colors.text },
+    statLabel: { fontSize: 11, color: colors.textSecondary },
+    location: { flex: 1, fontSize: 13, color: colors.textSecondary },
+    bio: { fontSize: 14, fontStyle: 'italic', fontWeight: WEIGHT.semibold, color: colors.text },
     placeholderText: { fontStyle: 'italic', color: colors.textSecondary },
     actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
     secondaryButton: {

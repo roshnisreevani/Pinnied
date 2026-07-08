@@ -176,6 +176,16 @@ export async function fetchMyGroups(userId: string): Promise<Group[]> {
     });
 }
 
+/** How many groups the user belongs to — for the profile stat row. */
+export async function fetchMyGroupsCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('group_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function createGroup(input: {
   name: string;
   description: string;
