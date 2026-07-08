@@ -5,9 +5,9 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CrestAvatar } from '@/components/profile/crest-avatar';
 import { PickThreeField } from '@/components/profile/pick-three-field';
 import { PinnieIcon } from '@/components/profile/pinnie-icon';
-import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { QrShareModal } from '@/components/profile/qr-share-modal';
 import { SportTagsField } from '@/components/profile/sport-tags-field';
 import { TrophyCase } from '@/components/profile/trophy-case';
@@ -150,11 +150,8 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Top row: name + settings/bell icons */}
+        {/* Top row: settings/bell icons (name moved into the centered header) */}
         <View style={styles.topRow}>
-          <Text style={styles.topName} numberOfLines={1}>
-            {profile.name || 'Nameless legend'}
-          </Text>
           <View style={styles.topIcons}>
             <AnimatedPressable hitSlop={8} onPress={() => router.push('/requests')} style={styles.iconWrap}>
               <UserPlus size={22} color={colors.text} strokeWidth={1.75} />
@@ -174,62 +171,62 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Streak counter — mock until real attendance tracking exists */}
-        <View style={styles.streakPill}>
-          <Flame size={14} color={colors.coral} strokeWidth={2} fill={colors.coral} />
-          <Text style={styles.streakText}>{MOCK_STREAK_WEEKS}-week streak</Text>
+        {/* Centered header: crest photo → streak → name → bio → location */}
+        <View style={styles.headerStack}>
+          <CrestAvatar name={profile.name} photoUri={profile.avatarUrl} size={155} />
+
+          {/* Streak counter — mock until real attendance tracking exists */}
+          <View style={styles.streakPill}>
+            <Flame size={14} color={colors.coral} strokeWidth={2} fill={colors.coral} />
+            <Text style={styles.streakText}>{MOCK_STREAK_WEEKS}-week streak</Text>
+          </View>
+
+          <Text style={styles.name} numberOfLines={1}>
+            {profile.name || 'Nameless legend'}
+          </Text>
+
+          {profile.legend ? <Text style={styles.bio}>{profile.legend}</Text> : null}
+
+          {profile.location ? (
+            <View style={styles.locationRow}>
+              <MapPin size={14} color={colors.textSecondary} strokeWidth={1.75} />
+              <Text style={styles.location} numberOfLines={2}>
+                {profile.location}
+              </Text>
+            </View>
+          ) : null}
+
+          {profile.walkupSong ? <WalkupSongRow song={profile.walkupSong} /> : null}
         </View>
 
-        {/* Walk-up song — compact row right under the name/streak; renders
-            nothing at all (no placeholder, no spacing) when unset */}
-        {profile.walkupSong ? (
-          <View style={styles.songRowWrap}>
-            <WalkupSongRow song={profile.walkupSong} />
-          </View>
-        ) : null}
+        {/* Stats — light rounded container, thin dividers */}
+        <View style={styles.statRow}>
+          <StatItem
+            icon={<PinnieIcon size={17} color={colors.blue} />}
+            value={followCounts.followers}
+            label="Followers"
+            onPress={() => router.push('/follows?tab=followers')}
+            styles={styles}
+          />
+          <View style={styles.statDivider} />
+          <StatItem
+            icon={<PinnieIcon size={17} color={colors.coral} />}
+            value={followCounts.following}
+            label="Following"
+            onPress={() => router.push('/follows?tab=following')}
+            styles={styles}
+          />
+          <View style={styles.statDivider} />
+          <StatItem
+            icon={<Users size={17} color={colors.text} strokeWidth={1.75} />}
+            value={groupsCount}
+            label="Groups"
+            styles={styles}
+          />
+        </View>
 
-        {/* Profile block: avatar left, location/bio/sports right, stat row under */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileCardTop}>
-            <ProfileAvatar name={profile.name} photoUri={profile.avatarUrl} size={96} />
-            <View style={styles.profileCardInfo}>
-              <View style={styles.locationRow}>
-                <MapPin size={14} color={colors.textSecondary} strokeWidth={1.75} />
-                <Text style={styles.location} numberOfLines={2}>
-                  {profile.location || 'Location unknown (probably local)'}
-                </Text>
-              </View>
-              <Text style={[styles.bio, !profile.legend && styles.placeholderText]}>
-                {profile.legend || 'peaked in 8th grade, still showing up'}
-              </Text>
-              <SportTagsField editing={false} selected={profile.sportTags} />
-            </View>
-          </View>
-
-          <View style={styles.statRow}>
-            <StatItem
-              icon={<PinnieIcon size={17} color={colors.blue} />}
-              value={followCounts.followers}
-              label="Followers"
-              onPress={() => router.push('/follows?tab=followers')}
-              styles={styles}
-            />
-            <View style={styles.statDivider} />
-            <StatItem
-              icon={<PinnieIcon size={17} color={colors.coral} />}
-              value={followCounts.following}
-              label="Following"
-              onPress={() => router.push('/follows?tab=following')}
-              styles={styles}
-            />
-            <View style={styles.statDivider} />
-            <StatItem
-              icon={<Users size={17} color={colors.text} strokeWidth={1.75} />}
-              value={groupsCount}
-              label="Groups"
-              styles={styles}
-            />
-          </View>
+        <View style={styles.sportTagsWrap}>
+          <SportTagsField editing={false} selected={profile.sportTags} />
         </View>
 
         {/* Edit profile + Share */}
@@ -337,15 +334,15 @@ function makeStyles(colors: ThemeColors) {
       borderColor: colors.background,
     },
     iconBadgeText: { fontSize: 9, fontWeight: WEIGHT.bold, color: ON_ACCENT },
-    topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    topName: { fontSize: 20, fontWeight: WEIGHT.bold, color: colors.text, flex: 1 },
+    topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
     topIcons: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    // Everything in the header is center-aligned, stacked photo-first.
+    headerStack: { alignItems: 'center', gap: 8, marginTop: 8 },
     streakPill: {
       flexDirection: 'row',
       alignItems: 'center',
-      alignSelf: 'flex-start',
       gap: 5,
-      marginTop: 10,
+      marginTop: 2,
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: RADII.pill,
@@ -353,27 +350,31 @@ function makeStyles(colors: ThemeColors) {
       borderColor: colors.border,
     },
     streakText: { fontSize: 12, fontWeight: WEIGHT.semibold, color: colors.text },
-    songRowWrap: { marginTop: 14 },
-    // Bare content block — no card surface/border, just the avatar+info row
-    // and the stat row sitting directly on the page background.
-    profileCard: {
-      marginTop: 18,
-      gap: 14,
-    },
-    profileCardTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-    profileCardInfo: { flex: 1, gap: 6 },
-    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    name: { fontSize: 22, fontWeight: WEIGHT.bold, color: colors.text, textAlign: 'center' },
+    locationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+    // Light rounded container with thin dividers between the three stats.
     statRow: {
       flexDirection: 'row',
       alignItems: 'stretch',
+      marginTop: 18,
+      backgroundColor: colors.borderSoft,
+      borderRadius: RADII.lg,
+      paddingVertical: 12,
     },
     stat: { flex: 1, alignItems: 'center', gap: 2 },
     statDivider: { width: 1, backgroundColor: colors.border },
     statValue: { fontSize: 17, fontWeight: WEIGHT.bold, color: colors.text },
     statLabel: { fontSize: 11, color: colors.textSecondary },
-    location: { flex: 1, fontSize: 13, color: colors.textSecondary },
-    bio: { fontSize: 14, fontStyle: 'italic', fontWeight: WEIGHT.semibold, color: colors.text },
-    placeholderText: { fontStyle: 'italic', color: colors.textSecondary },
+    location: { fontSize: 13, color: colors.textSecondary, textAlign: 'center' },
+    bio: {
+      fontSize: 14,
+      fontStyle: 'italic',
+      fontWeight: WEIGHT.semibold,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: 12,
+    },
+    sportTagsWrap: { alignItems: 'center', marginTop: 14 },
     actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
     secondaryButton: {
       flex: 1,
