@@ -19,6 +19,7 @@ import { GOLD, ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/st
 import { useThemeColors } from '@/contexts/theme-context';
 import type { ReportReason } from '@/lib/moderation';
 import type { Post } from '@/lib/posts';
+import { SPORTS } from '@/lib/sports';
 import type { ReactionType } from '@/lib/reactions';
 
 const DOUBLE_TAP_MS = 280;
@@ -45,6 +46,11 @@ function timeAgo(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+function sportLabel(sportTag: string | null): string {
+  const sport = SPORTS.find((s) => s.value === sportTag);
+  return sport ? `${sport.emoji} ${sport.label}` : '🏟️ General';
 }
 
 export function PostCard({
@@ -119,7 +125,7 @@ export function PostCard({
             {post.authorName}
           </Text>
           <Text style={styles.groupLine} numberOfLines={1}>
-            {post.groupEmoji} {post.groupName} · {timeAgo(post.createdAt)}
+            {sportLabel(post.sportTag)} · {timeAgo(post.createdAt)}
           </Text>
         </View>
 

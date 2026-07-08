@@ -140,6 +140,7 @@ export default function CreatePostScreen() {
       await createPost({
         authorId: userId,
         groupId,
+        sportTag,
         caption: caption.trim(),
         localMediaUri: media.uri,
         mediaType: media.type,

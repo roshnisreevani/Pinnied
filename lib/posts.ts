@@ -13,6 +13,7 @@ export type Post = {
   authorName: string;
   authorAvatarUrl: string | null;
   groupId: string;
+  sportTag: string | null;
   groupName: string;
   groupEmoji: string;
   caption: string;
@@ -40,6 +41,7 @@ type PostRow = {
   id: string;
   author_id: string;
   group_id: string;
+  sport_tag: string | null;
   caption: string | null;
   media_url: string;
   media_type: MediaType;
@@ -79,6 +81,7 @@ function rowToPost(row: PostRow, currentUserId: string | undefined): Post {
     authorName: row.author?.name?.trim() || 'Nameless legend',
     authorAvatarUrl: row.author?.avatar_url ?? null,
     groupId: row.group_id,
+    sportTag: row.sport_tag,
     groupName: group?.name ?? row.group_id,
     groupEmoji: group?.emoji ?? '🏟️',
     caption: row.caption ?? '',
@@ -167,6 +170,7 @@ async function uploadFeedMedia(userId: string, localUri: string, mediaType: Medi
 export async function createPost(input: {
   authorId: string;
   groupId: string;
+  sportTag: string | null;
   caption: string;
   localMediaUri: string;
   mediaType: MediaType;
@@ -176,6 +180,7 @@ export async function createPost(input: {
   const { error } = await supabase.from('posts').insert({
     author_id: input.authorId,
     group_id: input.groupId,
+    sport_tag: input.sportTag,
     caption: input.caption,
     media_url: mediaUrl,
     media_type: input.mediaType,
