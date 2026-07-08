@@ -1,7 +1,8 @@
 import { Image as ExpoImage } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, type ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   runOnJS,
@@ -14,13 +15,14 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { CARD_HEIGHT, CARD_WIDTH } from '@/components/feed/card-layout';
+import { errorMessage } from '@/lib/error-message';
 import { PositionDots } from '@/components/feed/position-dots';
 import { SessionPostCard } from '@/components/feed/session-post-card';
 import { ON_ACCENT, ON_DARK_SURFACE, RADII, WEIGHT } from '@/constants/style';
 import type { ReportReason } from '@/lib/moderation';
 import type { Post } from '@/lib/posts';
 import type { ReactionType } from '@/lib/reactions';
-import { sendPostToBanter } from '@/lib/send-to-banter';
+import { sendPostToPosterDm } from '@/lib/send-to-banter';
 
 const H_SWIPE_THRESHOLD = 70;
 const V_SWIPE_THRESHOLD = 70;
@@ -40,6 +42,10 @@ const DECISIVE_SPRING = {
 type Props = {
   posts: Post[]; // already ordered most-recent-first
   currentUserId: string;
+  // The Feed screen's wrapping scrollable (RNGH ScrollView). The card pan
+  // blocks it while a swipe is being judged so upward swipes reach the
+  // banter gesture instead of being eaten by page scrolling.
+  scrollRef?: React.RefObject<GHScrollView | null>;
   isHot: (post: Post) => boolean;
   isPostOfWeek: (post: Post) => boolean;
   streak: number;
@@ -64,6 +70,7 @@ type Props = {
 export function FeedCarousel({
   posts,
   currentUserId,
+  scrollRef,
   isHot,
   isPostOfWeek,
   streak,
@@ -74,6 +81,7 @@ export function FeedCarousel({
   onReport,
   onBlock,
 }: Props) {
+  const router = useRouter();
   const [activeIndex, setActiveIndex] = useState(0);
   const [arrowDirection, setArrowDirection] = useState<'left' | 'right' | null>(null);
   const [banterMessage, setBanterMessage] = useState<string | null>(null);
@@ -135,28 +143,52 @@ export function FeedCarousel({
     });
   };
 
-  const handleSwipeUpToBanter = async () => {
-    setBanterMessage('Sending…');
+  const showBanterBanner = (message: string) => {
+    setBanterMessage(message);
     banterOpacity.value = withTiming(1, { duration: 120 });
-    const delivered = await sendPostToBanter(activePost, currentUserId);
-    setBanterMessage(delivered ? 'Sent to Banter ✓' : "Couldn't reach this group's Banter thread yet");
     setTimeout(() => {
       banterOpacity.value = withTiming(0, { duration: 200 });
       setTimeout(() => setBanterMessage(null), 220);
     }, 1300);
   };
 
+  const handleSwipeUpToBanter = async () => {
+    if (activePost.authorId === currentUserId) {
+      showBanterBanner("That's your own post — no need to banter yourself");
+      return;
+    }
+    setBanterMessage('Opening Banter…');
+    banterOpacity.value = withTiming(1, { duration: 120 });
+    try {
+      const conversationId = await sendPostToPosterDm(activePost, currentUserId);
+      banterOpacity.value = withTiming(0, { duration: 150 });
+      setBanterMessage(null);
+      router.push(`/chat/${conversationId}`);
+    } catch (e) {
+      // getOrCreateDm's errors are user-readable (not connected, blocked…).
+      // Log the full object too — Postgres often puts the actionable fix in
+      // `hint`, which the banner's message alone won't show.
+      console.warn('[feed-carousel] swipe-up to banter failed:', e);
+      showBanterBanner(errorMessage(e, "Couldn't open Banter."));
+    }
+  };
+
   const canGoNext = activeIndex < posts.length - 1;
   const canGoPrev = activeIndex > 0;
 
-  const pan = Gesture.Pan()
-    // Without a minimum drag distance, this Pan gesture would compete with
-    // (and could win over) the reaction pills / comment button / menu
-    // button rendered inside SessionPostCard, since RNGH's default
-    // activation distance is tiny. Requiring ~12px of movement lets plain
-    // taps fall through to those Pressables untouched, while intentional
-    // swipes still activate normally.
-    .minDistance(12)
+  let pan = Gesture.Pan()
+    // The 12px activation offsets keep plain taps falling through to the
+    // reaction pills / comment button / menu button inside SessionPostCard
+    // (RNGH's default activation distance is tiny). They're directional —
+    // not minDistance — because the vertical side must be one-way: an
+    // upward drag past 12px is the banter swipe and activates the pan, but
+    // a downward drag is page scrolling and must FAIL the pan (failOffsetY)
+    // so the Feed ScrollView underneath can take over. With a plain
+    // minDistance the scroll view's native recognizer won vertical drags
+    // outright and swipe-up never fired.
+    .activeOffsetX([-12, 12])
+    .activeOffsetY(-12)
+    .failOffsetY(16)
     .onUpdate((e) => {
       translateX.value = e.translationX;
       translateY.value = e.translationY;
@@ -190,6 +222,16 @@ export function FeedCarousel({
       translateX.value = withSpring(0, DECISIVE_SPRING);
       translateY.value = withSpring(0, DECISIVE_SPRING);
     });
+
+  if (scrollRef) {
+    // Make the Feed ScrollView wait until this pan fails before scrolling.
+    // Failure is quick (16px downward, or finger-up without activation), so
+    // normal scrolling and pull-to-refresh keep working off-card and on
+    // downward drags — but upward drags on the card belong to banter.
+    // Cast: RNGH accepts component refs here at runtime, but its typings
+    // don't allow the `| null` that React 19's useRef(null) produces.
+    pan = pan.blocksExternalGesture(scrollRef as unknown as React.RefObject<React.ComponentType>);
+  }
 
   const cardStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
