@@ -1,5 +1,28 @@
-import { fetchGroupConversationId, sendMessage } from '@/lib/banter';
+import { fetchGroupConversationId, getOrCreateDm, sendMessage } from '@/lib/banter';
 import type { Post } from '@/lib/posts';
+
+function postAsMessage(post: Post): string {
+  return post.caption
+    ? `📸 Shared a post: "${post.caption}" — ${post.mediaUrl}`
+    : `📸 Shared a post — ${post.mediaUrl}`;
+}
+
+/**
+ * "Swipe up to banter" on a Feed card: opens (or creates) the DM thread with
+ * the post's author, drops the post in as a text reference (Banter messages
+ * are plain text — same format used for group forwarding below), and returns
+ * the conversation id so the caller can navigate to it.
+ *
+ * Throws rather than failing soft: getOrCreateDm's errors are the honest,
+ * user-showable reasons this can fail ("You can only message people you
+ * share a connection or group with.", blocked, etc.), and the swipe-up UI
+ * wants to surface them verbatim.
+ */
+export async function sendPostToPosterDm(post: Post, senderId: string): Promise<string> {
+  const conversationId = await getOrCreateDm(post.authorId);
+  await sendMessage(conversationId, senderId, postAsMessage(post));
+  return conversationId;
+}
 
 /**
  * Forwards a Feed post into its group's Banter thread. Reuses Banter's own
@@ -31,10 +54,7 @@ export async function sendPostToBanter(post: Post, senderId: string): Promise<bo
       return false;
     }
 
-    const content = post.caption
-      ? `📸 Shared a post: "${post.caption}" — ${post.mediaUrl}`
-      : `📸 Shared a post — ${post.mediaUrl}`;
-    await sendMessage(conversationId, senderId, content);
+    await sendMessage(conversationId, senderId, postAsMessage(post));
     return true;
   } catch (e) {
     console.warn('[send-to-banter] could not send post to Banter:', e);

@@ -1,8 +1,12 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Search } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, RefreshControl, StyleSheet, Text, View } from 'react-native';
+// RNGH's ScrollView (a drop-in for RN's) so FeedCarousel's swipe-up pan can
+// coordinate with page scrolling via blocksExternalGesture — with the plain
+// RN ScrollView the two recognizers can't negotiate and scroll wins.
+import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CommentsModal } from '@/components/feed/comments-modal';
@@ -24,6 +28,7 @@ export default function FeedScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
+  const scrollRef = useRef<ScrollView>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -165,6 +170,7 @@ export default function FeedScreen() {
 
       {userId ? (
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.text} />
@@ -179,6 +185,7 @@ export default function FeedScreen() {
               <FeedCarousel
                 posts={posts}
                 currentUserId={userId}
+                scrollRef={scrollRef}
                 isHot={isHot}
                 isPostOfWeek={isPostOfWeek}
                 streak={streak}
