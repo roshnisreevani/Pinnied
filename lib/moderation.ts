@@ -41,15 +41,26 @@ export async function blockUser(blockerId: string, blockedId: string): Promise<v
   );
   if (error) throw error;
 
-  // Blocking severs any existing connection between the two users. Best
-  // effort — a failed cleanup here shouldn't undo the block itself, and the
-  // connection is harmless to leave behind since both users' clients will
-  // hide each other everywhere once blocked_users filtering kicks in.
+  // Blocking severs the relationship between the two users: any legacy
+  // connection row plus follow edges in BOTH directions. Best effort — a
+  // failed cleanup here shouldn't undo the block itself, and leftovers are
+  // harmless since both users' clients hide each other everywhere once
+  // blocked_users filtering kicks in.
   try {
     const [userA, userB] = blockerId < blockedId ? [blockerId, blockedId] : [blockedId, blockerId];
     await supabase.from('connections').delete().eq('user_a', userA).eq('user_b', userB);
   } catch (e) {
     console.warn('[moderation] could not remove connection after block:', e);
+  }
+  try {
+    await supabase
+      .from('follows')
+      .delete()
+      .or(
+        `and(follower_id.eq.${blockerId},followee_id.eq.${blockedId}),and(follower_id.eq.${blockedId},followee_id.eq.${blockerId})`
+      );
+  } catch (e) {
+    console.warn('[moderation] could not remove follow edges after block:', e);
   }
 }
 

@@ -156,8 +156,8 @@ export default function SettingsScreen() {
               }
             />
             <Row
-              label="Allow connection requests from anyone"
-              sublabel="Turn off to stop new people from requesting to connect"
+              label="Allow new followers"
+              sublabel="Turn off to stop new people from following you"
               colors={colors}
               styles={styles}
               right={
@@ -171,7 +171,7 @@ export default function SettingsScreen() {
             />
             <Row
               label="Private account"
-              sublabel="Only connections can see your bio, sport tags, trophy case, and Pick Your 3"
+              sublabel="Only people you follow back can see your bio, sport tags, trophy case, and Pick Your 3"
               colors={colors}
               styles={styles}
               right={

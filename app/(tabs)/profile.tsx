@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { Bell, Flame, MapPin, Settings, UserPlus, Users } from 'lucide-react-native';
+import { Bell, Flame, MapPin, Settings, Users } from 'lucide-react-native';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +16,6 @@ import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
-import { fetchReceivedRequestsCount } from '@/lib/connections';
 import { fetchFollowCounts } from '@/lib/follows';
 import { fetchMyGroupsCount } from '@/lib/groups';
 import { MOCK_STREAK_WEEKS } from '@/lib/mock-stats';
@@ -37,7 +36,6 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [shareOpen, setShareOpen] = useState(false);
-  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
   const [groupsCount, setGroupsCount] = useState(0);
@@ -54,13 +52,8 @@ export default function ProfileScreen() {
       setLoading(false);
     }
 
-    // Both of these drive small badges on the top-row icons — non-fatal:
-    // the badges just stay at their last known value if either fails.
-    try {
-      setPendingRequestsCount(await fetchReceivedRequestsCount(userId));
-    } catch {
-      // Non-critical.
-    }
+    // Drives the small badge on the bell icon — non-fatal: the badge just
+    // stays at its last known value if this fails.
     try {
       setUnreadNotificationsCount(await fetchUnreadNotificationCount(userId));
     } catch {
@@ -150,15 +143,11 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Top row: settings/bell icons (name moved into the centered header) */}
+        {/* Top row: settings/bell icons (name moved into the centered header).
+            The old person-add icon linked to /requests — gone now that follows
+            are instant and there's nothing to approve. */}
         <View style={styles.topRow}>
           <View style={styles.topIcons}>
-            <AnimatedPressable hitSlop={8} onPress={() => router.push('/requests')} style={styles.iconWrap}>
-              <UserPlus size={22} color={colors.text} strokeWidth={1.75} />
-              {pendingRequestsCount > 0 ? (
-                <IconBadge count={pendingRequestsCount} color={colors.blue} styles={styles} />
-              ) : null}
-            </AnimatedPressable>
             <AnimatedPressable hitSlop={8} onPress={() => router.push('/notifications')} style={styles.iconWrap}>
               <Bell size={22} color={colors.text} strokeWidth={1.75} />
               {unreadNotificationsCount > 0 ? (

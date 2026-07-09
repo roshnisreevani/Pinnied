@@ -53,6 +53,7 @@ export async function sendPostToBanter(post: Post, senderId: string): Promise<bo
     return false;
   }
   try {
+    if (!post.groupId) return false; // group-less post — nowhere to forward
     const conversationId = await fetchGroupConversationId(post.groupId);
     if (!conversationId) {
       console.warn(
