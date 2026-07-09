@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Flame, MessageCircle } from 'lucide-react-native';
+import { ChevronLeft, Flame, MessageCircle, UserPlus } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +29,7 @@ function timeAgo(iso: string): string {
 }
 
 function messageFor(item: NotificationItem): string {
+  if (item.type === 'follow') return 'started following you';
   return item.type === 'reaction' ? 'reacted to your post' : 'commented on your post';
 }
 
@@ -48,6 +49,13 @@ export default function NotificationsScreen() {
     try {
       const fetched = await fetchNotifications(userId);
       setItems(fetched);
+      // Opening the screen counts as seeing everything: clear the bell badge
+      // in the database, but keep this visit's unread highlights as-fetched
+      // so what's new is still visible right now. Best-effort — worst case
+      // the badge survives until the next visit.
+      if (fetched.some((n) => !n.read)) {
+        markAllNotificationsRead(userId).catch(() => {});
+      }
     } catch (e) {
       Alert.alert('Could not load notifications', e instanceof Error ? e.message : 'Unknown error.');
     } finally {
@@ -111,7 +119,9 @@ export default function NotificationsScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {items.length === 0 ? (
-            <Text style={styles.empty}>Nothing yet — reactions and comments on your posts show up here.</Text>
+            <Text style={styles.empty}>
+              Nothing yet — new followers, reactions, and comments on your posts show up here.
+            </Text>
           ) : (
             items.map((item) => (
               <AnimatedPressable
@@ -129,9 +139,15 @@ export default function NotificationsScreen() {
                   </Text>
                   <Text style={styles.rowTime}>{timeAgo(item.createdAt)}</Text>
                 </View>
-                <View style={[styles.typeIcon, item.type === 'reaction' ? styles.typeIconReaction : styles.typeIconComment]}>
+                <View
+                  style={[
+                    styles.typeIcon,
+                    item.type === 'reaction' ? styles.typeIconReaction : styles.typeIconComment,
+                  ]}>
                   {item.type === 'reaction' ? (
                     <Flame size={14} color={colors.coral} strokeWidth={2} fill={colors.coral} />
+                  ) : item.type === 'follow' ? (
+                    <UserPlus size={14} color={colors.blue} strokeWidth={2} />
                   ) : (
                     <MessageCircle size={14} color={colors.blue} strokeWidth={2} />
                   )}
