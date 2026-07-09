@@ -8,6 +8,7 @@ export type FollowUser = {
   id: string;
   name: string;
   avatarUrl: string | null;
+  followedAt: string; // when the follow edge was created
 };
 
 export type FollowState = {
@@ -17,11 +18,12 @@ export type FollowState = {
 
 type ProfileJoin = { name: string | null; avatar_url: string | null } | null;
 
-function toFollowUser(id: string, profile: ProfileJoin): FollowUser {
+function toFollowUser(id: string, profile: ProfileJoin, followedAt: string): FollowUser {
   return {
     id,
     name: profile?.name?.trim() || 'Nameless legend',
     avatarUrl: profile?.avatar_url ?? null,
+    followedAt,
   };
 }
 
@@ -68,28 +70,28 @@ export async function fetchFollowState(userId: string, otherUserId: string): Pro
 export async function fetchFollowers(userId: string): Promise<FollowUser[]> {
   const { data, error } = await supabase
     .from('follows')
-    .select('follower_id, follower:profiles!follows_follower_id_fkey(name, avatar_url)')
+    .select('follower_id, created_at, follower:profiles!follows_follower_id_fkey(name, avatar_url)')
     .eq('followee_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return ((data ?? []) as unknown as { follower_id: string; follower: ProfileJoin }[]).map((row) =>
-    toFollowUser(row.follower_id, row.follower)
-  );
+  return (
+    (data ?? []) as unknown as { follower_id: string; created_at: string; follower: ProfileJoin }[]
+  ).map((row) => toFollowUser(row.follower_id, row.follower, row.created_at));
 }
 
 /** People the given user follows. */
 export async function fetchFollowing(userId: string): Promise<FollowUser[]> {
   const { data, error } = await supabase
     .from('follows')
-    .select('followee_id, followee:profiles!follows_followee_id_fkey(name, avatar_url)')
+    .select('followee_id, created_at, followee:profiles!follows_followee_id_fkey(name, avatar_url)')
     .eq('follower_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return ((data ?? []) as unknown as { followee_id: string; followee: ProfileJoin }[]).map((row) =>
-    toFollowUser(row.followee_id, row.followee)
-  );
+  return (
+    (data ?? []) as unknown as { followee_id: string; created_at: string; followee: ProfileJoin }[]
+  ).map((row) => toFollowUser(row.followee_id, row.followee, row.created_at));
 }
 
 /** Counts from the same table the lists read, so they always match. */

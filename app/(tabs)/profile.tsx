@@ -148,6 +148,9 @@ export default function ProfileScreen() {
             are instant and there's nothing to approve. */}
         <View style={styles.topRow}>
           <View style={styles.topIcons}>
+            <AnimatedPressable hitSlop={8} onPress={() => router.push('/connections')}>
+              <Users size={22} color={colors.text} strokeWidth={1.75} />
+            </AnimatedPressable>
             <AnimatedPressable hitSlop={8} onPress={() => router.push('/notifications')} style={styles.iconWrap}>
               <Bell size={22} color={colors.text} strokeWidth={1.75} />
               {unreadNotificationsCount > 0 ? (
@@ -210,6 +213,7 @@ export default function ProfileScreen() {
             icon={<Users size={17} color={colors.text} strokeWidth={1.75} />}
             value={groupsCount}
             label="Groups"
+            onPress={() => router.push('/my-groups')}
             styles={styles}
           />
         </View>

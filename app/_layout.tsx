@@ -42,6 +42,8 @@ function RootNavigator() {
             <Stack.Screen name="notifications" options={{ headerShown: false }} />
             <Stack.Screen name="privacy-safety" options={{ headerShown: false }} />
             <Stack.Screen name="follows" options={{ headerShown: false }} />
+            <Stack.Screen name="connections" options={{ headerShown: false }} />
+            <Stack.Screen name="my-groups" options={{ headerShown: false }} />
           </Stack.Protected>
           <Stack.Protected guard={!session}>
             <Stack.Screen name="auth" options={{ headerShown: false }} />
