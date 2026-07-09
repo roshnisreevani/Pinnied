@@ -38,7 +38,7 @@ export type MessageablePerson = {
   id: string;
   name: string;
   avatarUrl: string | null;
-  source: 'connection' | 'group';
+  source: 'follow' | 'group';
 };
 
 export function messageTimeLabel(iso: string): string {
@@ -206,43 +206,43 @@ export async function fetchGroupConversationId(groupId: string): Promise<string 
 }
 
 /**
- * Everyone the user is allowed to DM: accepted connections plus co-members
- * of their groups, deduped (connections win the label), minus anyone blocked
- * in either direction.
+ * Everyone the user is allowed to DM: anyone with a follow edge in either
+ * direction (matches get_or_create_dm's rule), plus co-members of their
+ * groups, deduped (follows win the label), minus anyone blocked in either
+ * direction.
  */
 export async function fetchMessageablePeople(userId: string, blockedIds: string[]): Promise<MessageablePerson[]> {
-  const [{ data: connRows, error: connError }, { data: myGroupRows, error: myGroupsError }] = await Promise.all([
+  const [{ data: followRows, error: followsError }, { data: myGroupRows, error: myGroupsError }] = await Promise.all([
     supabase
-      .from('connections')
+      .from('follows')
       .select(
-        'user_a, user_b, profileA:profiles!connections_user_a_fkey(name, avatar_url), profileB:profiles!connections_user_b_fkey(name, avatar_url)'
+        'follower_id, followee_id, follower:profiles!follows_follower_id_fkey(name, avatar_url), followee:profiles!follows_followee_id_fkey(name, avatar_url)'
       )
-      .eq('status', 'accepted')
-      .or(`user_a.eq.${userId},user_b.eq.${userId}`),
+      .or(`follower_id.eq.${userId},followee_id.eq.${userId}`),
     supabase.from('group_members').select('group_id').eq('user_id', userId),
   ]);
 
-  if (connError) throw connError;
+  if (followsError) throw followsError;
   if (myGroupsError) throw myGroupsError;
 
   const blocked = new Set(blockedIds);
   const people = new Map<string, MessageablePerson>();
 
-  for (const row of ((connRows ?? []) as unknown as Array<{
-    user_a: string;
-    user_b: string;
-    profileA: { name: string | null; avatar_url: string | null } | null;
-    profileB: { name: string | null; avatar_url: string | null } | null;
+  for (const row of ((followRows ?? []) as unknown as Array<{
+    follower_id: string;
+    followee_id: string;
+    follower: { name: string | null; avatar_url: string | null } | null;
+    followee: { name: string | null; avatar_url: string | null } | null;
   }>)) {
-    const otherIsA = row.user_b === userId;
-    const otherId = otherIsA ? row.user_a : row.user_b;
-    const profile = otherIsA ? row.profileA : row.profileB;
+    const otherIsFollower = row.followee_id === userId;
+    const otherId = otherIsFollower ? row.follower_id : row.followee_id;
+    const profile = otherIsFollower ? row.follower : row.followee;
     if (blocked.has(otherId)) continue;
     people.set(otherId, {
       id: otherId,
       name: profile?.name?.trim() || 'Nameless legend',
       avatarUrl: profile?.avatar_url ?? null,
-      source: 'connection',
+      source: 'follow',
     });
   }
 

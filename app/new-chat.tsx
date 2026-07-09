@@ -111,7 +111,7 @@ export default function NewChatScreen() {
                 <Text style={styles.rowName} numberOfLines={1}>
                   {item.name}
                 </Text>
-                <Text style={styles.rowSource}>{item.source === 'connection' ? 'Connection' : 'Group-mate'}</Text>
+                <Text style={styles.rowSource}>{item.source === 'follow' ? 'Follows' : 'Group-mate'}</Text>
               </View>
               {openingId === item.id ? <ActivityIndicator color={colors.text} size="small" /> : null}
             </AnimatedPressable>

@@ -15,17 +15,18 @@ import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import {
-  acceptConnection,
   fetchAllowsConnectionRequests,
   fetchConnectionNote,
-  fetchConnectionState,
   fetchIsPrivate,
-  fetchMutualConnectionsCount,
-  removeConnection,
   saveConnectionNote,
-  sendConnectionRequest,
-  type ConnectionState,
 } from '@/lib/connections';
+import {
+  fetchFollowState,
+  fetchMutualFollowsCount,
+  followUser,
+  unfollowUser,
+  type FollowState,
+} from '@/lib/follows';
 import { blockUser, fetchBlockedEitherDirection, reportContent, type ReportReason } from '@/lib/moderation';
 import { fetchProfile, type Profile } from '@/lib/profile';
 
@@ -47,11 +48,7 @@ export default function UserProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [blocked, setBlocked] = useState(false);
-  const [connection, setConnection] = useState<ConnectionState>({
-    connectionId: null,
-    status: null,
-    requestedByMe: false,
-  });
+  const [follow, setFollow] = useState<FollowState>({ iFollow: false, followsMe: false });
   const [allowsRequests, setAllowsRequests] = useState(true);
   const [isPrivate, setIsPrivate] = useState(true);
   const [mutualCount, setMutualCount] = useState(0);
@@ -78,27 +75,36 @@ export default function UserProfileScreen() {
       }
       setBlocked(false);
 
-      const [fetchedProfile, state, allows, priv] = await Promise.all([
+      const [fetchedProfile, allows, priv] = await Promise.all([
         fetchProfile(id),
-        fetchConnectionState(currentUserId, id),
         fetchAllowsConnectionRequests(id),
         fetchIsPrivate(id),
       ]);
 
+      // Follow state is non-fatal: if the follows table is missing or the
+      // query hiccups, still render the profile with a default not-following
+      // state (the button shows "Follow"; tapping it surfaces the real error).
+      let state: FollowState = { iFollow: false, followsMe: false };
+      try {
+        state = await fetchFollowState(currentUserId, id);
+      } catch (followError) {
+        console.warn('[user-profile] could not load follow state:', followError);
+      }
+
       setProfile(fetchedProfile);
-      setConnection(state);
+      setFollow(state);
       setAllowsRequests(allows);
       setIsPrivate(priv);
 
-      // Mutual connections only matter as a pre-connection signal; skip once
-      // already connected (or self-requested), and fail soft either way.
-      if (state.status !== 'accepted') {
-        fetchMutualConnectionsCount(id).then(setMutualCount);
+      // Mutual follows only matter as a pre-follow signal; skip once
+      // following, and fail soft either way.
+      if (!state.iFollow) {
+        fetchMutualFollowsCount(currentUserId, id).then(setMutualCount).catch(() => {});
       } else {
         setMutualCount(0);
       }
 
-      if (state.status === 'accepted') {
+      if (state.iFollow && state.followsMe) {
         try {
           const existingNote = await fetchConnectionNote(currentUserId, id);
           setNote(existingNote.note);
@@ -131,80 +137,38 @@ export default function UserProfileScreen() {
     }
   };
 
-  const handleConnect = async () => {
+  const handleFollow = async () => {
     if (!currentUserId || !id) return;
     if (!allowsRequests) {
-      Alert.alert('Requests off', `${profile?.name || 'This person'} isn't accepting connection requests right now.`);
+      Alert.alert('Follows off', `${profile?.name || 'This person'} isn't accepting new followers right now.`);
       return;
     }
     setBusy(true);
     try {
-      await sendConnectionRequest(currentUserId, id);
-      setConnection({ connectionId: null, status: 'pending', requestedByMe: true });
+      await followUser(currentUserId, id);
+      setFollow((prev) => ({ ...prev, iFollow: true }));
       await load();
     } catch (e) {
-      Alert.alert('Could not send request', e instanceof Error ? e.message : 'Unknown error.');
+      Alert.alert('Could not follow', e instanceof Error ? e.message : 'Unknown error.');
     } finally {
       setBusy(false);
     }
   };
 
-  const handleCancelRequest = async () => {
-    if (!connection.connectionId) return;
+  // Tapping "Following" unfollows immediately — one-way edge, no approval
+  // concept, and it never touches their edge toward me.
+  const handleUnfollow = async () => {
+    if (!currentUserId || !id) return;
     setBusy(true);
     try {
-      await removeConnection(connection.connectionId);
-      setConnection({ connectionId: null, status: null, requestedByMe: false });
-    } catch (e) {
-      Alert.alert('Could not cancel request', e instanceof Error ? e.message : 'Unknown error.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleAccept = async () => {
-    if (!connection.connectionId) return;
-    setBusy(true);
-    try {
-      await acceptConnection(connection.connectionId);
+      await unfollowUser(currentUserId, id);
+      setFollow((prev) => ({ ...prev, iFollow: false }));
       await load();
     } catch (e) {
-      Alert.alert('Could not accept request', e instanceof Error ? e.message : 'Unknown error.');
+      Alert.alert('Could not unfollow', e instanceof Error ? e.message : 'Unknown error.');
     } finally {
       setBusy(false);
     }
-  };
-
-  const handleDeclineIncoming = async () => {
-    if (!connection.connectionId) return;
-    setBusy(true);
-    try {
-      await removeConnection(connection.connectionId);
-      setConnection({ connectionId: null, status: null, requestedByMe: false });
-    } catch (e) {
-      Alert.alert('Could not decline request', e instanceof Error ? e.message : 'Unknown error.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleDisconnect = () => {
-    if (!connection.connectionId) return;
-    Alert.alert('Disconnect?', `You'll need to send a new request to reconnect with ${profile?.name || 'them'}.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Disconnect',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await removeConnection(connection.connectionId as string);
-            setConnection({ connectionId: null, status: null, requestedByMe: false });
-          } catch (e) {
-            Alert.alert('Could not disconnect', e instanceof Error ? e.message : 'Unknown error.');
-          }
-        },
-      },
-    ]);
   };
 
   const handleReport = async (reason: ReportReason) => {
@@ -263,9 +227,9 @@ export default function UserProfileScreen() {
 
   if (!profile) return null;
 
-  const canSeeFullProfile = !isPrivate || connection.status === 'accepted';
-  const notYetConnected = connection.status !== 'accepted';
-  const cameFromQr = src === 'qr' && notYetConnected;
+  const isMutual = follow.iFollow && follow.followsMe;
+  const canSeeFullProfile = !isPrivate || isMutual;
+  const cameFromQr = src === 'qr' && !follow.iFollow;
 
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
@@ -289,14 +253,14 @@ export default function UserProfileScreen() {
         {cameFromQr ? (
           <View style={styles.qrBanner}>
             <Text style={styles.qrBannerText}>
-              You scanned {profile.name || "this person's"} code — connect with them?
+              You scanned {profile.name || "this person's"} code — give them a follow?
             </Text>
           </View>
         ) : null}
 
-        {notYetConnected && mutualCount > 0 ? (
+        {!follow.iFollow && mutualCount > 0 ? (
           <Text style={styles.mutualText}>
-            {mutualCount} mutual connection{mutualCount === 1 ? '' : 's'}
+            {mutualCount} mutual follow{mutualCount === 1 ? '' : 's'}
           </Text>
         ) : null}
 
@@ -311,37 +275,30 @@ export default function UserProfileScreen() {
             <SportTagsField editing={false} selected={profile.sportTags} />
           </>
         ) : (
-          <Text style={styles.privateText}>Connect to see more</Text>
+          <Text style={styles.privateText}>Follow each other to see more</Text>
         )}
 
         <View style={styles.actionRow}>
-          {connection.status === 'accepted' ? (
-            <AnimatedPressable style={styles.connectedButton} onPress={handleDisconnect} disabled={busy}>
-              <Text style={styles.connectedButtonText}>Connected ✓</Text>
+          {follow.iFollow ? (
+            <AnimatedPressable style={styles.connectedButton} onPress={handleUnfollow} disabled={busy}>
+              {busy ? (
+                <ActivityIndicator color={colors.blue} size="small" />
+              ) : (
+                <Text style={styles.connectedButtonText}>Following ✓</Text>
+              )}
             </AnimatedPressable>
-          ) : connection.status === 'pending' && connection.requestedByMe ? (
-            <AnimatedPressable style={styles.secondaryButton} onPress={handleCancelRequest} disabled={busy}>
-              <Text style={styles.secondaryButtonText}>Cancel request</Text>
-            </AnimatedPressable>
-          ) : connection.status === 'pending' && !connection.requestedByMe ? (
-            <View style={styles.incomingRow}>
-              <AnimatedPressable style={styles.secondaryButton} onPress={handleDeclineIncoming} disabled={busy}>
-                <Text style={styles.secondaryButtonText}>Decline</Text>
-              </AnimatedPressable>
-              <AnimatedPressable style={styles.primaryButton} onPress={handleAccept} disabled={busy}>
-                <Text style={styles.primaryButtonText}>Accept</Text>
-              </AnimatedPressable>
-            </View>
           ) : (
-            <AnimatedPressable style={styles.primaryButton} onPress={handleConnect} disabled={busy}>
+            <AnimatedPressable style={styles.primaryButton} onPress={handleFollow} disabled={busy}>
               {busy ? (
                 <ActivityIndicator color={ON_ACCENT} size="small" />
               ) : (
-                <Text style={styles.primaryButtonText}>Connect</Text>
+                <Text style={styles.primaryButtonText}>{follow.followsMe ? 'Follow back' : 'Follow'}</Text>
               )}
             </AnimatedPressable>
           )}
         </View>
+
+        {follow.followsMe ? <Text style={styles.followsYouText}>Follows you</Text> : null}
 
         {canSeeFullProfile ? (
           <>
@@ -357,7 +314,7 @@ export default function UserProfileScreen() {
           </>
         ) : null}
 
-        {connection.status === 'accepted' ? (
+        {isMutual ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Private note (only visible to you)</Text>
             <TextInput
@@ -437,7 +394,7 @@ function makeStyles(colors: ThemeColors) {
       textAlignVertical: 'top',
     },
     actionRow: { marginTop: 18, alignItems: 'center' },
-    incomingRow: { flexDirection: 'row', gap: 10, width: '100%' },
+    followsYouText: { marginTop: 8, fontSize: 12, color: colors.textSecondary, textAlign: 'center' },
     primaryButton: {
       flex: 1,
       alignItems: 'center',

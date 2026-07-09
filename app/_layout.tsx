@@ -39,7 +39,6 @@ function RootNavigator() {
             <Stack.Screen name="find-people" options={{ headerShown: false }} />
             <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="u/[id]" options={{ headerShown: false }} />
-            <Stack.Screen name="requests" options={{ headerShown: false }} />
             <Stack.Screen name="notifications" options={{ headerShown: false }} />
             <Stack.Screen name="privacy-safety" options={{ headerShown: false }} />
             <Stack.Screen name="follows" options={{ headerShown: false }} />
