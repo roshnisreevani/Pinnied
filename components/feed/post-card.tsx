@@ -13,6 +13,7 @@ import Animated, {
 
 import { ContentMenu } from '@/components/moderation/content-menu';
 import { FlyingReaction } from '@/components/feed/flying-reaction';
+import { PostVideo } from '@/components/feed/post-video';
 import { ReactionBar } from '@/components/feed/reaction-bar';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { GOLD, ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
@@ -147,9 +148,7 @@ export function PostCard({
       <Pressable onPress={handleMediaPress}>
         <View style={styles.mediaWrap}>
           {post.mediaType === 'video' ? (
-            <View style={[styles.media, styles.videoFallback]}>
-              <Text style={styles.videoFallbackText}>▶ video</Text>
-            </View>
+            <PostVideo uri={post.mediaUrl} style={styles.media} />
           ) : (
             <Image source={{ uri: post.mediaUrl }} style={styles.media} />
           )}
@@ -234,8 +233,6 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.borderSoft,
     },
     media: { width: '100%', aspectRatio: 1, backgroundColor: colors.borderSoft },
-    videoFallback: { alignItems: 'center', justifyContent: 'center' },
-    videoFallbackText: { color: colors.textSecondary, fontSize: 14, fontWeight: WEIGHT.semibold },
     caption: { fontSize: 14, color: colors.text, lineHeight: 19 },
     footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     commentButton: { flexDirection: 'row', alignItems: 'center', gap: 5 },

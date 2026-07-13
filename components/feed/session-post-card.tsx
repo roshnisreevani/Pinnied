@@ -5,6 +5,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CARD_WIDTH } from '@/components/feed/card-layout';
 import { FlyingReaction } from '@/components/feed/flying-reaction';
+import { PostVideo } from '@/components/feed/post-video';
 import { GradientScrim } from '@/components/feed/gradient-scrim';
 import { ReactionBar } from '@/components/feed/reaction-bar';
 import { StreakBadge } from '@/components/feed/streak-badge';
@@ -96,9 +97,7 @@ export function SessionPostCard({
     <View style={styles.card}>
       <Pressable onPress={handleMediaPress} style={styles.mediaWrap}>
         {post.mediaType === 'video' ? (
-          <View style={[styles.media, styles.videoFallback]}>
-            <Text style={styles.videoFallbackText}>▶ video</Text>
-          </View>
+          <PostVideo uri={post.mediaUrl} style={styles.media} />
         ) : (
           // expo-image (not core RN Image) for its memory+disk caching —
           // paired with the adjacent-post prefetch in feed-carousel.tsx,
@@ -215,8 +214,6 @@ function makeStyles(colors: ThemeColors) {
     },
     mediaWrap: { width: '100%', aspectRatio: 0.82, backgroundColor: colors.borderSoft },
     media: { width: '100%', height: '100%' },
-    videoFallback: { alignItems: 'center', justifyContent: 'center' },
-    videoFallbackText: { color: colors.textSecondary, fontSize: 14, fontWeight: WEIGHT.semibold },
     topOverlay: {
       position: 'absolute',
       top: 12,
