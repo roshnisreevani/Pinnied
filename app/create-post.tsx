@@ -1,6 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Video } from 'lucide-react-native';
 import { useMemo, useRef, useState } from 'react';
 import {
@@ -23,24 +22,9 @@ import { SportPickerField } from '@/components/create-post/sport-picker-field';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
+import { pickMedia } from '@/lib/pick-photo';
 import { type SportTag } from '@/lib/sports';
 import { createPost, type MediaType } from '@/lib/posts';
-
-async function pickFeedMedia(): Promise<{ uri: string; type: MediaType } | null> {
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) {
-    Alert.alert('No access', 'Need photo library access to add media to a post.');
-    return null;
-  }
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images', 'videos'],
-    quality: 0.7,
-  });
-  if (result.canceled) return null;
-  const asset = result.assets[0];
-  const type: MediaType = asset.type === 'video' ? 'video' : 'image';
-  return { uri: asset.uri, type };
-}
 
 // Particle burst setup — fixed directions spread evenly in a circle.
 const PARTICLE_COUNT = 10;
@@ -113,6 +97,9 @@ function triggerCelebration(
 }
 
 export default function CreatePostScreen() {
+  // When opened from a group's detail screen, the post is scoped to that
+  // group (members-only); with no param it's a regular global feed post.
+  const { groupId } = useLocalSearchParams<{ groupId?: string }>();
   const { session } = useAuth();
   const userId = session?.user.id;
   const router = useRouter();
@@ -132,7 +119,7 @@ export default function CreatePostScreen() {
   const particles = useRef(PARTICLE_VECTORS.map(() => new Animated.Value(0))).current;
 
   const handlePickMedia = async () => {
-    const picked = await pickFeedMedia();
+    const picked = await pickMedia();
     if (picked) setMedia(picked);
   };
 
@@ -149,6 +136,7 @@ export default function CreatePostScreen() {
     try {
       await createPost({
         authorId: userId,
+        groupId: groupId ?? null,
         sportTag,
         caption: caption.trim(),
         localMediaUri: media.uri,
@@ -172,7 +160,7 @@ export default function CreatePostScreen() {
         <AnimatedPressable onPress={handleCancel} hitSlop={8} disabled={posting}>
           <Text style={styles.cancelText}>Cancel</Text>
         </AnimatedPressable>
-        <Text style={styles.headerTitle}>New Post</Text>
+        <Text style={styles.headerTitle}>{groupId ? 'New Group Post' : 'New Post'}</Text>
         <AnimatedPressable
           style={[styles.postButton, (!media || posting) && styles.postButtonDisabled]}
           onPress={handlePost}
@@ -195,6 +183,10 @@ export default function CreatePostScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={0}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {groupId ? (
+            <Text style={styles.groupScopeNote}>Only members of this group will see this post.</Text>
+          ) : null}
+
           <AnimatedPressable style={styles.mediaBox} onPress={handlePickMedia}>
             {media ? (
               media.type === 'video' ? (
@@ -291,6 +283,7 @@ function makeStyles(colors: ThemeColors) {
     postButtonDisabled: { opacity: 0.4 },
     postButtonText: { fontWeight: WEIGHT.bold, color: ON_ACCENT, fontSize: 14 },
     content: { padding: 20, gap: 18, paddingBottom: 60 },
+    groupScopeNote: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: -6 },
     mediaBox: {
       aspectRatio: 1,
       borderRadius: RADII.lg,

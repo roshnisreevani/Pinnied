@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "The Rec uses your photo library so you can set a profile photo and pick your Pick Your 3 pictures.",
-        "NSCameraUsageDescription": "The Rec uses your camera so you can take a new profile photo directly.",
+        "NSCameraUsageDescription": "The Rec uses your camera so you can take a new profile photo directly and capture photos or videos for posts.",
+        "NSMicrophoneUsageDescription": "The Rec uses the microphone when you record a video for a post.",
         "NSPhotoLibraryAddUsageDescription": "The Rec can save your share card and QR code to your photos when you tap Save."
       }
     },

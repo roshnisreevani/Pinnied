@@ -120,6 +120,26 @@ export async function fetchFeed(currentUserId: string | undefined): Promise<Post
     .map((row) => rowToPost(row, currentUserId));
 }
 
+/** Posts scoped to one group, newest first. RLS additionally guarantees only
+ * members can read these rows (see the group_posts migration). */
+export async function fetchGroupPosts(groupId: string, currentUserId: string | undefined): Promise<Post[]> {
+  const [{ data, error }, blockedIds] = await Promise.all([
+    supabase
+      .from('posts')
+      .select('*, author:profiles(name, avatar_url), reactions:post_reactions(type, user_id), comments:post_comments(count)')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false }),
+    fetchBlockedUserIds(currentUserId),
+  ]);
+
+  if (error) throw error;
+
+  const blocked = new Set(blockedIds);
+  return ((data ?? []) as unknown as PostRow[])
+    .filter((row) => !blocked.has(row.author_id))
+    .map((row) => rowToPost(row, currentUserId));
+}
+
 export function totalReactions(post: Post): number {
   return Object.values(post.reactionCounts).reduce((sum, n) => sum + n, 0);
 }

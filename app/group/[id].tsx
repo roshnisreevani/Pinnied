@@ -1,13 +1,19 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, ChevronLeft, Lock, MessagesSquare, UserPlus, Users2, X } from 'lucide-react-native';
+import { Check, ChevronLeft, ImagePlus, Lock, MessagesSquare, UserPlus, Users2, X } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CommentsModal } from '@/components/feed/comments-modal';
+import { PostCard } from '@/components/feed/post-card';
+
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { fetchGroupConversationId } from '@/lib/banter';
+import { blockUser, reportContent, type ReportReason } from '@/lib/moderation';
+import { computePostOfWeekId, deletePost, fetchGroupPosts, setReaction, totalReactions, type Post } from '@/lib/posts';
+import { HOT_THRESHOLD, type ReactionType } from '@/lib/reactions';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
@@ -19,7 +25,6 @@ import {
   leaveGroup,
   respondToJoinRequest,
   type Group,
-  type GroupMember,
   type JoinRequest,
 } from '@/lib/groups';
 
@@ -32,8 +37,9 @@ export default function GroupDetailScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [group, setGroup] = useState<Group | null>(null);
-  const [members, setMembers] = useState<GroupMember[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null);
@@ -48,12 +54,19 @@ export default function GroupDetailScreen() {
         return;
       }
       setGroup(detail.group);
-      setMembers(detail.members);
 
       if (detail.group.myRole === 'owner' && detail.group.privacy === 'private') {
         setJoinRequests(await fetchJoinRequests(id));
       } else {
         setJoinRequests([]);
+      }
+
+      // Group posts are non-fatal: the group screen still works if the
+      // group_posts migration hasn't run yet or the query hiccups.
+      try {
+        setPosts(await fetchGroupPosts(id, userId));
+      } catch (postsError) {
+        console.warn('[group] could not load group posts:', postsError);
       }
     } catch (e) {
       Alert.alert('Could not load group', e instanceof Error ? e.message : 'Unknown error.');
@@ -99,6 +112,83 @@ export default function GroupDetailScreen() {
     );
   };
 
+  // Same optimistic reaction toggle the main Feed uses.
+  const handleToggleReaction = async (postId: string, type: ReactionType) => {
+    if (!userId) return;
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+    const isActive = post.myReactions.includes(type);
+    const next = !isActive;
+
+    const apply = (list: Post[], adding: boolean) =>
+      list.map((p) => {
+        if (p.id !== postId) return p;
+        const myReactions = adding ? [...p.myReactions, type] : p.myReactions.filter((t) => t !== type);
+        const reactionCounts = {
+          ...p.reactionCounts,
+          [type]: Math.max(0, p.reactionCounts[type] + (adding ? 1 : -1)),
+        };
+        return { ...p, myReactions, reactionCounts };
+      });
+
+    setPosts((prev) => apply(prev, next));
+    try {
+      await setReaction(postId, userId, type, next);
+    } catch (e) {
+      setPosts((prev) => apply(prev, isActive)); // revert
+      Alert.alert('Could not react', e instanceof Error ? e.message : 'Unknown error.');
+    }
+  };
+
+  const handleDeletePost = (post: Post) => {
+    Alert.alert('Delete this post?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const prev = posts;
+          setPosts((p) => p.filter((x) => x.id !== post.id));
+          try {
+            await deletePost(post);
+          } catch (e) {
+            setPosts(prev);
+            Alert.alert('Could not delete post', e instanceof Error ? e.message : 'Unknown error.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleReportPost = async (post: Post, reason: ReportReason) => {
+    if (!userId) return;
+    try {
+      await reportContent(userId, 'post', post.id, reason);
+      Alert.alert('Reported', "Thanks for flagging this — we'll take a look.");
+    } catch (e) {
+      Alert.alert('Could not send report', e instanceof Error ? e.message : 'Unknown error.');
+    }
+  };
+
+  const handleBlockPostAuthor = (post: Post) => {
+    if (!userId) return;
+    Alert.alert(`Block ${post.authorName}?`, "You won't see their posts or comments anymore.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Block',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await blockUser(userId, post.authorId);
+            load();
+          } catch (e) {
+            Alert.alert('Could not block user', e instanceof Error ? e.message : 'Unknown error.');
+          }
+        },
+      },
+    ]);
+  };
+
   const handleRespondToRequest = async (request: JoinRequest, approve: boolean) => {
     setRespondingRequestId(request.id);
     try {
@@ -111,6 +201,9 @@ export default function GroupDetailScreen() {
       setRespondingRequestId(null);
     }
   };
+
+  const postOfWeekId = useMemo(() => computePostOfWeekId(posts), [posts]);
+  const commentsPost = posts.find((p) => p.id === commentsPostId) ?? null;
 
   if (loading || !group) {
     return (
@@ -185,6 +278,40 @@ export default function GroupDetailScreen() {
             <MessagesSquare size={16} color={colors.text} strokeWidth={2} />
             <Text style={styles.banterButtonText}>Banter</Text>
           </AnimatedPressable>
+          <AnimatedPressable
+            style={[styles.banterButton, styles.actionButton]}
+            onPress={() => router.push(`/create-post?groupId=${group.id}`)}>
+            <ImagePlus size={16} color={colors.text} strokeWidth={2} />
+            <Text style={styles.banterButtonText}>Post</Text>
+          </AnimatedPressable>
+          <AnimatedPressable
+            style={[styles.banterButton, styles.actionButton]}
+            onPress={() => router.push(`/group/members/${group.id}`)}>
+            <Users2 size={16} color={colors.text} strokeWidth={2} />
+            <Text style={styles.banterButtonText}>Members</Text>
+          </AnimatedPressable>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Posts</Text>
+          {posts.length === 0 ? (
+            <Text style={styles.emptyPosts}>No posts yet — be the first to post something.</Text>
+          ) : (
+            posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                currentUserId={userId ?? ''}
+                isHot={totalReactions(post) >= HOT_THRESHOLD}
+                isPostOfWeek={post.id === postOfWeekId}
+                onToggleReaction={(type) => handleToggleReaction(post.id, type)}
+                onOpenComments={() => setCommentsPostId(post.id)}
+                onDelete={() => handleDeletePost(post)}
+                onReport={(reason) => handleReportPost(post, reason)}
+                onBlock={() => handleBlockPostAuthor(post)}
+              />
+            ))
+          )}
         </View>
 
         {joinRequests.length > 0 ? (
@@ -223,27 +350,6 @@ export default function GroupDetailScreen() {
           </View>
         ) : null}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Members</Text>
-          {members.map((member) => (
-            <View key={member.id} style={styles.memberRow}>
-              {member.avatarUrl ? (
-                <Image source={{ uri: member.avatarUrl }} style={styles.avatarImage} />
-              ) : (
-                <InitialsAvatar name={member.name} size={36} />
-              )}
-              <Text style={styles.memberName} numberOfLines={1}>
-                {member.name}
-              </Text>
-              {member.role === 'owner' ? (
-                <View style={styles.ownerBadge}>
-                  <Text style={styles.ownerBadgeText}>Owner</Text>
-                </View>
-              ) : null}
-            </View>
-          ))}
-        </View>
-
         <AnimatedPressable style={styles.leaveButton} onPress={handleLeaveOrDelete} disabled={busy}>
           {busy ? (
             <ActivityIndicator color={colors.danger} size="small" />
@@ -252,6 +358,18 @@ export default function GroupDetailScreen() {
           )}
         </AnimatedPressable>
       </ScrollView>
+
+      {userId ? (
+        <CommentsModal
+          visible={!!commentsPostId}
+          postId={commentsPostId}
+          postAuthorId={commentsPost?.authorId ?? null}
+          userId={userId}
+          onClose={() => setCommentsPostId(null)}
+          onCommentAdded={() => load()}
+          onUserBlocked={() => load()}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -285,8 +403,9 @@ function makeStyles(colors: ThemeColors) {
     metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     metaText: { fontSize: 12, color: colors.textSecondary },
     description: { fontSize: 14, color: colors.text, marginTop: 12, lineHeight: 20 },
-    actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
-    actionButton: { flex: 1 },
+    // 2×2 grid — four equal actions (Invite/Banter on top, Post/Members below).
+    actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 18 },
+    actionButton: { flexBasis: '47%', flexGrow: 1 },
     inviteButton: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -310,17 +429,10 @@ function makeStyles(colors: ThemeColors) {
     banterButtonText: { color: colors.text, fontWeight: WEIGHT.semibold, fontSize: 14 },
     section: { marginTop: 26, gap: 4 },
     sectionTitle: { fontSize: 13, fontWeight: WEIGHT.bold, color: colors.text, marginBottom: 8 },
-    memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
     requestRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
     avatarImage: { width: 36, height: 36, borderRadius: 18 },
     memberName: { flex: 1, fontSize: 14, color: colors.text, fontWeight: WEIGHT.medium },
-    ownerBadge: {
-      backgroundColor: colors.borderSoft,
-      borderRadius: RADII.pill,
-      paddingHorizontal: 9,
-      paddingVertical: 3,
-    },
-    ownerBadgeText: { fontSize: 11, fontWeight: WEIGHT.semibold, color: colors.textSecondary },
+    emptyPosts: { fontSize: 14, fontStyle: 'italic', color: colors.textSecondary, paddingVertical: 8 },
     requestActions: { flexDirection: 'row', gap: 8 },
     requestDecline: {
       width: 30,
