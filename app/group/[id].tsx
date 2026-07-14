@@ -1,13 +1,12 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, ChevronLeft, ImagePlus, Lock, MessagesSquare, Trophy, UserPlus, Users2, X } from 'lucide-react-native';
+import { Calendar, Check, ChevronLeft, ImagePlus, Lock, MessagesSquare, Trophy, UserPlus, Users2, X } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CommentsModal } from '@/components/feed/comments-modal';
 import { PostCard } from '@/components/feed/post-card';
-
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { fetchGroupConversationId } from '@/lib/banter';
@@ -313,6 +312,12 @@ export default function GroupDetailScreen() {
             onPress={() => router.push(`/group/leaderboard/${group.id}`)}>
             <Trophy size={16} color={colors.text} strokeWidth={2} />
             <Text style={styles.banterButtonText}>Leaderboard</Text>
+          </AnimatedPressable>
+          <AnimatedPressable
+            style={[styles.banterButton, styles.actionButton]}
+            onPress={() => router.push(`/group/gameday/${group.id}`)}>
+            <Calendar size={16} color={colors.text} strokeWidth={2} />
+            <Text style={styles.banterButtonText}>Game Day</Text>
           </AnimatedPressable>
         </View>
 
