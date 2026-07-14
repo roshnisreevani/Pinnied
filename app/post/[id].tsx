@@ -12,7 +12,7 @@ import { FONTS, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { blockUser, reportContent, type ReportReason } from '@/lib/moderation';
-import { deletePost, fetchPostById, setReaction, totalReactions, type Post } from '@/lib/posts';
+import { deletePost, fetchPostById, resharePost, setReaction, totalReactions, type Post } from '@/lib/posts';
 import { HOT_THRESHOLD, type ReactionType } from '@/lib/reactions';
 
 /**
@@ -109,6 +109,16 @@ export default function PostDetailScreen() {
     }
   };
 
+  const handleReshare = async () => {
+    if (!post || !userId) return;
+    try {
+      await resharePost(post, userId);
+      Alert.alert('Reshared', 'A fresh copy is now at the top of your Feed.');
+    } catch (e) {
+      Alert.alert('Could not reshare', e instanceof Error ? e.message : 'Unknown error.');
+    }
+  };
+
   const handleBlock = () => {
     if (!post || !userId) return;
     Alert.alert(`Block ${post.authorName}?`, "You won't see their posts or comments anymore.", [
@@ -176,6 +186,7 @@ export default function PostDetailScreen() {
                   onDelete={handleDelete}
                   onReport={handleReport}
                   onBlock={handleBlock}
+                  onReshare={handleReshare}
                 />
               </View>
             }

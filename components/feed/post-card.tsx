@@ -15,6 +15,7 @@ import { ContentMenu } from '@/components/moderation/content-menu';
 import { FlyingReaction } from '@/components/feed/flying-reaction';
 import { PostVideo } from '@/components/feed/post-video';
 import { ReactionBar } from '@/components/feed/reaction-bar';
+import { ShareSheet } from '@/components/feed/share-sheet';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { GOLD, ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
@@ -36,6 +37,7 @@ type Props = {
   onDelete: () => void;
   onReport: (reason: ReportReason) => void;
   onBlock: () => void;
+  onReshare: () => void;
   // Single tap on the media (double-tap still fires 🔥). Omit where the
   // card already IS the full-screen view.
   onOpenPost?: () => void;
@@ -68,6 +70,7 @@ export function PostCard({
   onDelete,
   onReport,
   onBlock,
+  onReshare,
   onOpenPost,
 }: Props) {
   const colors = useThemeColors();
@@ -77,6 +80,7 @@ export function PostCard({
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [flyKey, setFlyKey] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const isOwn = post.authorId === currentUserId;
 
   const shakeX = useSharedValue(0);
@@ -132,6 +136,9 @@ export function PostCard({
 
   return (
     <Animated.View style={[styles.card, isPostOfWeek && styles.cardPostOfWeek, cardStyle]}>
+      {post.resharedFromAuthorName ? (
+        <Text style={styles.reshareLabel}>🔁 Reshared from {post.resharedFromAuthorName}</Text>
+      ) : null}
       <View style={styles.header}>
         {post.authorAvatarUrl ? (
           <Image source={{ uri: post.authorAvatarUrl }} style={styles.avatarImage} />
@@ -177,10 +184,11 @@ export function PostCard({
 
       <View style={styles.footer}>
         <ReactionBar
+          postId={post.id}
           counts={post.reactionCounts}
           active={post.myReactions}
           onToggle={onToggleReaction}
-          onNoWay={handleShake}
+          onOpenShare={() => setShareSheetOpen(true)}
         />
 
         <Pressable style={styles.commentButton} onPress={onOpenComments} hitSlop={8}>
@@ -188,6 +196,14 @@ export function PostCard({
           <Text style={styles.commentCount}>{post.commentCount}</Text>
         </Pressable>
       </View>
+
+      <ShareSheet
+        visible={shareSheetOpen}
+        post={post}
+        currentUserId={currentUserId}
+        onClose={() => setShareSheetOpen(false)}
+        onReshare={onReshare}
+      />
 
       <ContentMenu
         visible={menuOpen}
@@ -223,6 +239,7 @@ function makeStyles(colors: ThemeColors) {
       shadowOffset: { width: 0, height: 0 },
       elevation: 3,
     },
+    reshareLabel: { fontSize: 11, fontWeight: WEIGHT.medium, color: colors.textSecondary },
     header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     avatarImage: { width: 34, height: 34, borderRadius: 17 },
     headerText: { flex: 1, gap: 1 },

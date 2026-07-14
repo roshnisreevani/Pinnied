@@ -17,11 +17,13 @@ import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { useReactionStreak } from '@/lib/feed-streak';
+import { errorMessage } from '@/lib/error-message';
 import { blockUser, reportContent, type ReportReason } from '@/lib/moderation';
 import {
   archivePost,
   computePostOfWeekId,
   fetchFeed,
+  resharePost,
   setReaction,
   totalReactions,
   type FeedScope,
@@ -52,7 +54,7 @@ export default function FeedScreen() {
         const fetched = await fetchFeed(userId, scopeOverride ?? scope);
         setPosts(fetched);
       } catch (e) {
-        Alert.alert('Could not load Feed', e instanceof Error ? e.message : 'Unknown error.');
+        Alert.alert('Could not load Feed', errorMessage(e));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -116,7 +118,7 @@ export default function FeedScreen() {
           return { ...p, myReactions, reactionCounts };
         })
       );
-      Alert.alert('Could not react', e instanceof Error ? e.message : 'Unknown error.');
+      Alert.alert('Could not react', errorMessage(e));
     }
   };
 
@@ -136,7 +138,7 @@ export default function FeedScreen() {
             await archivePost(post);
           } catch (e) {
             setPosts(prev);
-            Alert.alert('Could not archive post', e instanceof Error ? e.message : 'Unknown error.');
+            Alert.alert('Could not archive post', errorMessage(e));
           }
         },
       },
@@ -149,7 +151,18 @@ export default function FeedScreen() {
       await reportContent(userId, 'post', post.id, reason);
       Alert.alert('Reported', "Thanks for flagging this — we'll take a look.");
     } catch (e) {
-      Alert.alert('Could not send report', e instanceof Error ? e.message : 'Unknown error.');
+      Alert.alert('Could not send report', errorMessage(e));
+    }
+  };
+
+  const handleReshare = async (post: Post) => {
+    if (!userId) return;
+    try {
+      await resharePost(post, userId);
+      Alert.alert('Reshared', 'A fresh copy is now at the top of your Feed.');
+      load();
+    } catch (e) {
+      Alert.alert('Could not reshare', errorMessage(e));
     }
   };
 
@@ -165,7 +178,7 @@ export default function FeedScreen() {
             await blockUser(userId, post.authorId);
             load();
           } catch (e) {
-            Alert.alert('Could not block user', e instanceof Error ? e.message : 'Unknown error.');
+            Alert.alert('Could not block user', errorMessage(e));
           }
         },
       },
@@ -223,6 +236,7 @@ export default function FeedScreen() {
                 onDelete={handleDeletePost}
                 onReport={handleReportPost}
                 onBlock={handleBlockUser}
+                onReshare={handleReshare}
               />
               <FeedEndCard />
             </>

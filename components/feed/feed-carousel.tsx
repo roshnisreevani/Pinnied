@@ -55,6 +55,7 @@ type Props = {
   onDelete: (post: Post) => void;
   onReport: (post: Post, reason: ReportReason) => void;
   onBlock: (post: Post) => void;
+  onReshare: (post: Post) => void;
 };
 
 /**
@@ -80,6 +81,7 @@ export function FeedCarousel({
   onDelete,
   onReport,
   onBlock,
+  onReshare,
 }: Props) {
   const router = useRouter();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -281,6 +283,7 @@ export function FeedCarousel({
               onDelete={() => onDelete(activePost)}
               onReport={(reason) => onReport(activePost, reason)}
               onBlock={() => onBlock(activePost)}
+              onReshare={() => onReshare(activePost)}
             />
           </Animated.View>
         </GestureDetector>

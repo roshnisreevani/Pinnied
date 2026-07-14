@@ -12,7 +12,15 @@ import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { fetchGroupConversationId } from '@/lib/banter';
 import { blockUser, reportContent, type ReportReason } from '@/lib/moderation';
-import { computePostOfWeekId, deletePost, fetchGroupPosts, setReaction, totalReactions, type Post } from '@/lib/posts';
+import {
+  computePostOfWeekId,
+  deletePost,
+  fetchGroupPosts,
+  resharePost,
+  setReaction,
+  totalReactions,
+  type Post,
+} from '@/lib/posts';
 import { HOT_THRESHOLD, type ReactionType } from '@/lib/reactions';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
@@ -189,6 +197,16 @@ export default function GroupDetailScreen() {
     ]);
   };
 
+  const handleReshare = async (post: Post) => {
+    if (!userId) return;
+    try {
+      await resharePost(post, userId);
+      Alert.alert('Reshared', 'A fresh copy is now at the top of your Feed.');
+    } catch (e) {
+      Alert.alert('Could not reshare', e instanceof Error ? e.message : 'Unknown error.');
+    }
+  };
+
   const handleRespondToRequest = async (request: JoinRequest, approve: boolean) => {
     setRespondingRequestId(request.id);
     try {
@@ -316,6 +334,7 @@ export default function GroupDetailScreen() {
                 onDelete={() => handleDeletePost(post)}
                 onReport={(reason) => handleReportPost(post, reason)}
                 onBlock={() => handleBlockPostAuthor(post)}
+                onReshare={() => handleReshare(post)}
               />
             ))
           )}

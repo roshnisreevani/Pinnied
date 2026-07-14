@@ -1,11 +1,11 @@
 import * as Haptics from 'expo-haptics';
+import { Share2 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withSequence,
   withSpring,
   withTiming,
@@ -14,19 +14,62 @@ import Animated, {
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
+import { EMOJI_DATA } from '@/lib/emoji-data';
+import { fetchReactionUsers } from '@/lib/posts';
 import { REACTIONS, type ReactionType } from '@/lib/reactions';
 
 type Props = {
+  postId: string;
   counts: Record<ReactionType, number>;
   active: ReactionType[];
   onToggle: (type: ReactionType) => void;
-  // Fired whenever "no way" is tapped so the parent post card can shake itself.
-  onNoWay: () => void;
+  // Opens the share sheet (reshare / share to group / save).
+  onOpenShare: () => void;
 };
 
-export function ReactionBar({ counts, active, onToggle, onNoWay }: Props) {
+const PRESET_TYPES = new Set(REACTIONS.map((r) => r.type));
+
+// Double-tap-on-media still writes a 'fire' reaction under the hood (drives
+// the streak/HOT-badge features) even though it's no longer one of the 3
+// curated pills — excluded here so it doesn't show up as a stray "fire" text
+// pill instead of a real emoji.
+const HIDDEN_TYPES = new Set(['fire']);
+
+export function ReactionBar({ postId, counts, active, onToggle, onOpenShare }: Props) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [reactorsFor, setReactorsFor] = useState<string | null>(null);
+  const [reactorNames, setReactorNames] = useState<string[] | null>(null);
+
+  const filteredEmoji = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return EMOJI_DATA;
+    return EMOJI_DATA.filter(
+      (e) => e.name.toLowerCase().includes(q) || e.keywords?.some((k) => k.toLowerCase().includes(q))
+    );
+  }, [search]);
+
+  // Any emoji picked via the "+" grid that isn't one of the 3 presets —
+  // rendered as its own pill so it's not lost, just not pinned like presets.
+  const customTypes = Object.keys(counts).filter(
+    (type) => !PRESET_TYPES.has(type) && !HIDDEN_TYPES.has(type) && (counts[type] > 0 || active.includes(type))
+  );
+
+  const handlePickEmoji = (emoji: string) => {
+    setPickerOpen(false);
+    setSearch('');
+    onToggle(emoji);
+  };
+
+  const handleShowReactors = (type: string) => {
+    setReactorsFor(type);
+    setReactorNames(null);
+    fetchReactionUsers(postId, type)
+      .then(setReactorNames)
+      .catch(() => setReactorNames([]));
+  };
 
   return (
     <View style={styles.row}>
@@ -40,14 +83,109 @@ export function ReactionBar({ counts, active, onToggle, onNoWay }: Props) {
           isActive={active.includes(meta.type)}
           colors={colors}
           styles={styles}
-          onPress={() => {
-            if (meta.type === 'no_way') onNoWay();
-            onToggle(meta.type);
-          }}
+          onPress={() => onToggle(meta.type)}
+          onLongPress={() => handleShowReactors(meta.type)}
         />
       ))}
+
+      {customTypes.map((type) => (
+        <ReactionPill
+          key={type}
+          type={type}
+          emoji={type}
+          accent="neutral"
+          count={counts[type] ?? 0}
+          isActive={active.includes(type)}
+          colors={colors}
+          styles={styles}
+          onPress={() => onToggle(type)}
+          onLongPress={() => handleShowReactors(type)}
+        />
+      ))}
+
+      {/* Opens a real in-app grid of emoji to react with — not the 3 presets
+          above, and not dependent on the device's own emoji keyboard. */}
+      <Pressable style={styles.addPill} onPress={() => setPickerOpen(true)} hitSlop={6}>
+        <Text style={styles.addPillText}>+</Text>
+      </Pressable>
+
+      {/* Share: reshare to your Feed, share to a group, or save privately. */}
+      <Pressable style={styles.addPill} onPress={onOpenShare} hitSlop={6}>
+        <Share2 size={14} color={colors.textSecondary} strokeWidth={2} />
+      </Pressable>
+
+      <Modal
+        visible={pickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setPickerOpen(false);
+          setSearch('');
+        }}>
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => {
+            setPickerOpen(false);
+            setSearch('');
+          }}>
+          <Pressable style={styles.gridCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.pickerTitle}>React with</Text>
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search emoji…"
+              placeholderTextColor={colors.textSecondary}
+              style={styles.searchInput}
+              autoCorrect={false}
+            />
+            <ScrollView contentContainerStyle={styles.grid} keyboardShouldPersistTaps="handled">
+              {filteredEmoji.length === 0 ? (
+                <Text style={styles.noResults}>No emoji found.</Text>
+              ) : (
+                filteredEmoji.map((e) => (
+                  <Pressable
+                    key={e.emoji}
+                    style={styles.gridCell}
+                    onPress={() => handlePickEmoji(e.emoji)}
+                    hitSlop={2}>
+                    <Text style={styles.gridEmoji}>{e.emoji}</Text>
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={reactorsFor !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReactorsFor(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setReactorsFor(null)}>
+          <Pressable style={styles.pickerCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.pickerTitle}>{reactorsFor ? reactorsHeading(reactorsFor) : ''}</Text>
+            {reactorNames === null ? (
+              <ActivityIndicator color={colors.text} />
+            ) : reactorNames.length === 0 ? (
+              <Text style={styles.reactorEmpty}>No one yet.</Text>
+            ) : (
+              reactorNames.map((name, i) => (
+                <Text key={`${name}-${i}`} style={styles.reactorName}>
+                  {name}
+                </Text>
+              ))
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
+}
+
+function reactorsHeading(type: string): string {
+  const meta = REACTIONS.find((r) => r.type === type);
+  return meta ? `${meta.emoji} ${meta.label}` : type;
 }
 
 function ReactionPill({
@@ -59,6 +197,7 @@ function ReactionPill({
   colors,
   styles,
   onPress,
+  onLongPress,
 }: {
   type: ReactionType;
   emoji: string;
@@ -68,6 +207,7 @@ function ReactionPill({
   colors: ThemeColors;
   styles: ReturnType<typeof makeStyles>;
   onPress: () => void;
+  onLongPress: () => void;
 }) {
   const pop = useSharedValue(1);
   const [burstKey, setBurstKey] = useState(0);
@@ -85,58 +225,17 @@ function ReactionPill({
 
   return (
     <View style={styles.pillWrap}>
-      {type === 'fire' ? <FlameBurst triggerKey={burstKey} /> : null}
-      {type === 'rough' ? <PuffBurst triggerKey={burstKey} colors={colors} /> : null}
+      {type === 'lol' ? <PuffBurst triggerKey={burstKey} colors={colors} /> : null}
 
       <AnimatedPressable
         style={[styles.pill, isActive && { borderColor: accentColor, backgroundColor: colors.borderSoft }]}
         onPress={handlePress}
+        onLongPress={onLongPress}
         haptic={false}>
         <Animated.Text style={[styles.pillEmoji, popStyle]}>{emoji}</Animated.Text>
         <Text style={[styles.pillCount, isActive && { color: accentColor, fontWeight: WEIGHT.bold }]}>{count}</Text>
       </AnimatedPressable>
     </View>
-  );
-}
-
-const FLAME_COUNT = 4;
-
-function FlameBurst({ triggerKey }: { triggerKey: number }) {
-  if (triggerKey === 0) return null;
-  return (
-    <View style={burstStyles.wrap} pointerEvents="none">
-      {Array.from({ length: FLAME_COUNT }).map((_, i) => (
-        <FlameParticle key={`${triggerKey}-${i}`} index={i} />
-      ))}
-    </View>
-  );
-}
-
-function FlameParticle({ index }: { index: number }) {
-  const progress = useSharedValue(0);
-  const dx = (index - (FLAME_COUNT - 1) / 2) * 10 + (Math.random() - 0.5) * 6;
-
-  useEffect(() => {
-    progress.value = withDelay(
-      index * 40,
-      withTiming(1, { duration: 550, easing: Easing.out(Easing.cubic) })
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: 1 - progress.value,
-    transform: [
-      { translateY: -progress.value * 34 },
-      { translateX: dx * progress.value },
-      { scale: 0.7 + progress.value * 0.5 },
-    ],
-  }));
-
-  return (
-    <Animated.Text style={[burstStyles.flame, style]} pointerEvents="none">
-      🔥
-    </Animated.Text>
   );
 }
 
@@ -182,20 +281,72 @@ function makeStyles(colors: ThemeColors) {
     },
     pillEmoji: { fontSize: 14 },
     pillCount: { fontSize: 12, color: colors.textSecondary, fontWeight: WEIGHT.medium },
+    addPill: {
+      width: 28,
+      height: 28,
+      borderRadius: RADII.pill,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addPillText: { fontSize: 15, color: colors.textSecondary, fontWeight: WEIGHT.medium },
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 30,
+    },
+    pickerCard: {
+      width: '100%',
+      maxWidth: 280,
+      backgroundColor: colors.background,
+      borderRadius: RADII.lg,
+      padding: 20,
+      gap: 14,
+      alignItems: 'center',
+    },
+    gridCard: {
+      width: '100%',
+      maxWidth: 340,
+      maxHeight: 440,
+      backgroundColor: colors.background,
+      borderRadius: RADII.lg,
+      padding: 18,
+      gap: 12,
+    },
+    searchInput: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.md,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 14,
+      color: colors.text,
+    },
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 4,
+      justifyContent: 'center',
+    },
+    gridCell: {
+      width: 48,
+      height: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: RADII.md,
+    },
+    gridEmoji: { fontSize: 24 },
+    noResults: { fontSize: 13, color: colors.textSecondary, paddingVertical: 20 },
+    pickerTitle: { fontSize: 14, fontWeight: WEIGHT.semibold, color: colors.text, textAlign: 'center' },
+    reactorName: { fontSize: 14, color: colors.text, alignSelf: 'stretch' },
+    reactorEmpty: { fontSize: 13, color: colors.textSecondary },
   });
 }
 
 const burstStyles = StyleSheet.create({
-  wrap: {
-    position: 'absolute',
-    top: 4,
-    left: '50%',
-    width: 0,
-    height: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  flame: { position: 'absolute', fontSize: 12 },
   puff: {
     position: 'absolute',
     top: 0,

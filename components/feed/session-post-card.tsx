@@ -8,6 +8,7 @@ import { FlyingReaction } from '@/components/feed/flying-reaction';
 import { PostVideo } from '@/components/feed/post-video';
 import { GradientScrim } from '@/components/feed/gradient-scrim';
 import { ReactionBar } from '@/components/feed/reaction-bar';
+import { ShareSheet } from '@/components/feed/share-sheet';
 import { StreakBadge } from '@/components/feed/streak-badge';
 import { ContentMenu } from '@/components/moderation/content-menu';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
@@ -32,6 +33,7 @@ type Props = {
   onDelete: () => void;
   onReport: (reason: ReportReason) => void;
   onBlock: () => void;
+  onReshare: () => void;
   // Single tap on the media (double-tap still fires 🔥).
   onOpenPost?: () => void;
 };
@@ -73,6 +75,7 @@ export function SessionPostCard({
   onDelete,
   onReport,
   onBlock,
+  onReshare,
   onOpenPost,
 }: Props) {
   const colors = useThemeColors();
@@ -82,6 +85,7 @@ export function SessionPostCard({
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [flyKey, setFlyKey] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const isOwn = post.authorId === currentUserId;
   const hasReactedFire = post.myReactions.includes('fire');
   const showStreak = hasReactedFire && streak >= STREAK_DISPLAY_THRESHOLD;
@@ -145,6 +149,11 @@ export function SessionPostCard({
               <Text style={styles.timeText} numberOfLines={1}>
                 {sportLabel(post.sportTag)} · {timeAgo(post.createdAt)}
               </Text>
+              {post.resharedFromAuthorName ? (
+                <Text style={styles.reshareLabel} numberOfLines={1}>
+                  🔁 from {post.resharedFromAuthorName}
+                </Text>
+              ) : null}
             </View>
           </View>
 
@@ -187,10 +196,11 @@ export function SessionPostCard({
         ) : null}
         <View style={styles.footerRow}>
           <ReactionBar
+            postId={post.id}
             counts={post.reactionCounts}
             active={post.myReactions}
             onToggle={onToggleReaction}
-            onNoWay={() => {}}
+            onOpenShare={() => setShareSheetOpen(true)}
           />
           <Pressable style={styles.commentButton} onPress={onOpenComments} hitSlop={8}>
             <MessageCircle size={16} color={colors.blue} strokeWidth={1.75} />
@@ -198,6 +208,14 @@ export function SessionPostCard({
           </Pressable>
         </View>
       </View>
+
+      <ShareSheet
+        visible={shareSheetOpen}
+        post={post}
+        currentUserId={currentUserId}
+        onClose={() => setShareSheetOpen(false)}
+        onReshare={onReshare}
+      />
 
       <ContentMenu
         visible={menuOpen}
@@ -253,6 +271,7 @@ function makeStyles(colors: ThemeColors) {
     authorText: { gap: 0 },
     authorName: { fontSize: 12, fontWeight: WEIGHT.bold, color: ON_DARK_SURFACE },
     timeText: { fontSize: 10, color: 'rgba(255,255,255,0.75)' },
+    reshareLabel: { fontSize: 10, color: 'rgba(255,255,255,0.75)' },
     topRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     hotBadge: {
       backgroundColor: colors.coral,

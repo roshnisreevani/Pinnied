@@ -52,6 +52,7 @@ type Props = {
   onDelete: (post: Post) => void;
   onReport: (post: Post, reason: ReportReason) => void;
   onBlock: (post: Post) => void;
+  onReshare: (post: Post) => void;
 };
 
 export function SessionCarousel({
@@ -66,6 +67,7 @@ export function SessionCarousel({
   onDelete,
   onReport,
   onBlock,
+  onReshare,
 }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [arrowDirection, setArrowDirection] = useState<'left' | 'right' | null>(null);
@@ -207,6 +209,7 @@ export function SessionCarousel({
               onToggleReaction={(type) => onToggleReaction(activePost.id, type)}
               onOpenComments={() => onOpenComments(activePost.id)}
               onDelete={() => onDelete(activePost)}
+              onReshare={() => onReshare(activePost)}
               onReport={(reason) => onReport(activePost, reason)}
               onBlock={() => onBlock(activePost)}
             />

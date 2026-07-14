@@ -28,6 +28,10 @@ export type Post = {
   reactionCounts: Record<ReactionType, number>;
   myReactions: ReactionType[];
   commentCount: number;
+  // Set when this post is a reshare — a text snapshot of who it came from,
+  // taken at reshare time so it still reads correctly even if that account
+  // is later renamed or deleted. Null for an original (non-reshared) post.
+  resharedFromAuthorName: string | null;
 };
 
 export type Comment = {
@@ -54,6 +58,7 @@ type PostRow = {
   media_type: MediaType;
   created_at: string;
   archived_at: string | null;
+  reshared_from_author_name: string | null;
   author: { name: string | null; avatar_url: string | null } | null;
   reactions: ReactionRow[] | null;
   comments: CommentCountRow[] | null;
@@ -70,15 +75,17 @@ function emptyReactionCounts(): Record<ReactionType, number> {
 }
 
 function rowToPost(row: PostRow, currentUserId: string | undefined): Post {
+  // Seed the 4 presets at 0 so they always render even with no reactions yet,
+  // then tally every reaction row by its actual type — including custom
+  // emoji picked via the long-press picker, which aren't presets and used to
+  // get silently dropped here.
   const reactionCounts = emptyReactionCounts();
   const myReactions: ReactionType[] = [];
 
   for (const r of row.reactions ?? []) {
-    const type = r.type as ReactionType;
-    if (type in reactionCounts) {
-      reactionCounts[type] += 1;
-      if (currentUserId && r.user_id === currentUserId) myReactions.push(type);
-    }
+    const type = r.type;
+    reactionCounts[type] = (reactionCounts[type] ?? 0) + 1;
+    if (currentUserId && r.user_id === currentUserId) myReactions.push(type);
   }
 
   const group = row.group_id ? getMockGroup(row.group_id) : null;
@@ -100,11 +107,12 @@ function rowToPost(row: PostRow, currentUserId: string | undefined): Post {
     reactionCounts,
     myReactions,
     commentCount: row.comments?.[0]?.count ?? 0,
+    resharedFromAuthorName: row.reshared_from_author_name,
   };
 }
 
 const POST_SELECT =
-  '*, author:profiles(name, avatar_url), reactions:post_reactions(type, user_id), comments:post_comments(count)';
+  '*, author:profiles!posts_author_id_fkey(name, avatar_url), reactions:post_reactions(type, user_id), comments:post_comments(count)';
 
 /**
  * Chronological feed, scoped to either "following" (posts from people you
@@ -178,7 +186,7 @@ export async function fetchGroupPosts(groupId: string, currentUserId: string | u
   const [{ data, error }, blockedIds] = await Promise.all([
     supabase
       .from('posts')
-      .select('*, author:profiles(name, avatar_url), reactions:post_reactions(type, user_id), comments:post_comments(count)')
+      .select('*, author:profiles!posts_author_id_fkey(name, avatar_url), reactions:post_reactions(type, user_id), comments:post_comments(count)')
       .eq('group_id', groupId)
       .order('created_at', { ascending: false }),
     fetchBlockedUserIds(currentUserId),
@@ -190,6 +198,22 @@ export async function fetchGroupPosts(groupId: string, currentUserId: string | u
   return ((data ?? []) as unknown as PostRow[])
     .filter((row) => !blocked.has(row.author_id))
     .map((row) => rowToPost(row, currentUserId));
+}
+
+/** Names of everyone who reacted to a post with a specific emoji/type —
+ * powers the long-press "who reacted with this" view on a reaction pill. */
+export async function fetchReactionUsers(postId: string, type: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('post_reactions')
+    .select('user:profiles(name)')
+    .eq('post_id', postId)
+    .eq('type', type);
+
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as Array<{ user: { name: string | null } | null }>).map(
+    (row) => row.user?.name?.trim() || 'Nameless legend'
+  );
 }
 
 export function totalReactions(post: Post): number {
@@ -400,23 +424,87 @@ export async function archivePost(post: Pick<Post, 'id'>): Promise<void> {
 }
 
 /**
- * "Reshare" from Archive: posts a brand-new copy of the same photo/caption
- * (fresh id, fresh timestamp, starts with 0 reactions/comments). The
- * original stays exactly where it was in Archive, untouched — this is
- * closer to resharing an old memory than un-deleting something.
+ * Reshare: posts a brand-new copy of the same photo/caption (fresh id, fresh
+ * timestamp, starts with 0 reactions/comments), attributed to whoever tapped
+ * reshare — NOT necessarily the original author, since this is now also
+ * available directly from Feed on anyone's post, not just your own from
+ * Archive. `posts` RLS requires author_id = auth.uid(), so this must always
+ * be the resharing user's own id, never post.authorId. The original post
+ * (and its own author) is untouched either way.
+ *
+ * Stamps reshared_from_* so the new copy visibly shows "Reshared from
+ * {authorName}" wherever it's rendered — a name snapshot is stored (not just
+ * the id) so that label survives the source account being renamed or deleted.
  */
 export async function resharePost(
-  post: Pick<Post, 'authorId' | 'groupId' | 'sportTag' | 'caption' | 'mediaUrl' | 'mediaType'>
+  post: Pick<Post, 'id' | 'authorId' | 'authorName' | 'groupId' | 'sportTag' | 'caption' | 'mediaUrl' | 'mediaType'>,
+  resharedByUserId: string
 ): Promise<void> {
   const { error } = await supabase.from('posts').insert({
-    author_id: post.authorId,
+    author_id: resharedByUserId,
     group_id: post.groupId,
     sport_tag: post.sportTag,
     caption: post.caption,
     media_url: post.mediaUrl,
     media_type: post.mediaType,
+    reshared_from_post_id: post.id,
+    reshared_from_author_id: post.authorId,
+    reshared_from_author_name: post.authorName,
   });
   if (error) throw error;
+}
+
+/**
+ * Same idea as resharePost, but into a specific group's feed rather than the
+ * general one — the "Share to a group" destination in the share sheet. Same
+ * reshared_from_* attribution stamping as resharePost.
+ */
+export async function shareToGroup(
+  post: Pick<Post, 'id' | 'authorId' | 'authorName' | 'sportTag' | 'caption' | 'mediaUrl' | 'mediaType'>,
+  groupId: string,
+  sharedByUserId: string
+): Promise<void> {
+  const { error } = await supabase.from('posts').insert({
+    author_id: sharedByUserId,
+    group_id: groupId,
+    sport_tag: post.sportTag,
+    caption: post.caption,
+    media_url: post.mediaUrl,
+    media_type: post.mediaType,
+    reshared_from_post_id: post.id,
+    reshared_from_author_id: post.authorId,
+    reshared_from_author_name: post.authorName,
+  });
+  if (error) throw error;
+}
+
+/** Bookmarks a post to the current user's own private Saved list — visible
+ * only to them, doesn't post or notify anyone. */
+export async function savePost(userId: string, postId: string): Promise<void> {
+  const { error } = await supabase
+    .from('saved_posts')
+    .upsert({ user_id: userId, post_id: postId }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+export async function unsavePost(userId: string, postId: string): Promise<void> {
+  const { error } = await supabase.from('saved_posts').delete().eq('user_id', userId).eq('post_id', postId);
+  if (error) throw error;
+}
+
+/** The current user's saved posts, most recently saved first. */
+export async function fetchSavedPosts(userId: string): Promise<Post[]> {
+  const { data, error } = await supabase
+    .from('saved_posts')
+    .select(`post:posts(${POST_SELECT})`)
+    .eq('user_id', userId)
+    .order('saved_at', { ascending: false });
+
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as { post: PostRow | null }[])
+    .filter((row): row is { post: PostRow } => row.post !== null)
+    .map((row) => rowToPost(row.post, userId));
 }
 
 /**

@@ -82,13 +82,14 @@ export default function ArchiveScreen() {
   };
 
   const handleReshare = (post: Post) => {
+    if (!userId) return;
     Alert.alert('Reshare this post?', 'Posts a fresh copy to Feed. The original stays right here in Archive.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Reshare',
         onPress: async () => {
           try {
-            await resharePost(post);
+            await resharePost(post, userId);
             Alert.alert('Reshared', 'Check your Feed — the fresh copy is live.');
           } catch (e) {
             Alert.alert('Could not reshare post', errorMessage(e));
