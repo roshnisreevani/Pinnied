@@ -1,10 +1,14 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, ChevronLeft } from 'lucide-react-native';
+import { CalendarDays, Check, ChevronLeft } from 'lucide-react-native';
 import { useMemo, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,8 +38,9 @@ export default function CreateBracketScreen() {
   const [name, setName] = useState('');
   const [sportTag, setSportTag] = useState<SportTag | null>(null);
   const [description, setDescription] = useState('');
-  const [startDate, setStartDate] = useState('');
   const [seeding, setSeeding] = useState<SeedingMethod>('random');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -74,7 +79,7 @@ export default function CreateBracketScreen() {
         name: name.trim(),
         sportTag,
         description: description.trim() || null,
-        startDate: startDate.trim() || null,
+        startDate: startDate ? startDate.toISOString().split('T')[0] : null,
         seeding,
         participants,
       });
@@ -140,14 +145,55 @@ export default function CreateBracketScreen() {
         {/* Start date */}
         <View style={styles.field}>
           <Text style={styles.label}>Start date</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={colors.textSecondary}
-            value={startDate}
-            onChangeText={setStartDate}
-            keyboardType="numbers-and-punctuation"
-          />
+          <Pressable style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
+            <CalendarDays size={16} color={startDate ? colors.text : colors.textSecondary} strokeWidth={1.75} />
+            <Text style={[styles.dateButtonText, !startDate && { color: colors.textSecondary }]}>
+              {startDate
+                ? startDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+                : 'Select a date (optional)'}
+            </Text>
+            {startDate ? (
+              <Pressable onPress={() => setStartDate(null)} hitSlop={8}>
+                <Text style={{ color: colors.textSecondary, fontSize: 18, lineHeight: 20 }}>×</Text>
+              </Pressable>
+            ) : null}
+          </Pressable>
+
+          {/* iOS inline picker in a modal */}
+          {Platform.OS === 'ios' && showDatePicker ? (
+            <Modal transparent animationType="slide">
+              <Pressable style={styles.dateModalOverlay} onPress={() => setShowDatePicker(false)} />
+              <View style={[styles.datePickerSheet, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <View style={styles.datePickerHeader}>
+                  <Pressable onPress={() => setShowDatePicker(false)}>
+                    <Text style={[styles.datePickerDone, { color: colors.coral }]}>Done</Text>
+                  </Pressable>
+                </View>
+                <DateTimePicker
+                  value={startDate ?? new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={(_, date) => { if (date) setStartDate(date); }}
+                  minimumDate={new Date()}
+                  themeVariant="light"
+                />
+              </View>
+            </Modal>
+          ) : null}
+
+          {/* Android — picker appears inline when showDatePicker=true */}
+          {Platform.OS === 'android' && showDatePicker ? (
+            <DateTimePicker
+              value={startDate ?? new Date()}
+              mode="date"
+              display="default"
+              onChange={(_, date) => {
+                setShowDatePicker(false);
+                if (date) setStartDate(date);
+              }}
+              minimumDate={new Date()}
+            />
+          ) : null}
         </View>
 
         {/* Seeding */}
@@ -292,5 +338,31 @@ function makeStyles(colors: ThemeColors) {
       borderWidth: 1.5,
       borderColor: colors.border,
     },
+    dateButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.md,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      backgroundColor: colors.background,
+    },
+    dateButtonText: { flex: 1, fontSize: 15, color: colors.text },
+    dateModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
+    datePickerSheet: {
+      borderTopWidth: 1,
+      borderTopLeftRadius: RADII.lg,
+      borderTopRightRadius: RADII.lg,
+      paddingBottom: 30,
+    },
+    datePickerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+    },
+    datePickerDone: { fontSize: 16, fontWeight: WEIGHT.semibold },
   });
 }
