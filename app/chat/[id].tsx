@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
@@ -205,6 +206,20 @@ export default function ChatScreen() {
   );
   const invertedMessages = useMemo(() => visibleMessages.slice().reverse(), [visibleMessages]);
 
+  // Ids of the last message in each run of consecutive same-sender messages
+  // (chronological order). Only these get the avatar + name, iMessage-style —
+  // earlier bubbles in a burst stay bare. Computed once, not per render.
+  const burstTailIds = useMemo(() => {
+    const tails = new Set<string>();
+    for (let i = 0; i < visibleMessages.length; i++) {
+      const next = visibleMessages[i + 1];
+      if (!next || next.senderId !== visibleMessages[i].senderId) {
+        tails.add(visibleMessages[i].id);
+      }
+    }
+    return tails;
+  }, [visibleMessages]);
+
   if (loading || !info) {
     return (
       <SafeAreaView style={styles.loading} edges={['top']}>
@@ -249,13 +264,35 @@ export default function ChatScreen() {
           }
           renderItem={({ item }) => {
             const mine = item.senderId === userId;
+            // Avatar rides the last bubble of a same-sender burst (the visual
+            // bottom, where the tail sits) — on the left for others, on the
+            // right for me. The name label is only for others in group chats.
+            const showMeta = burstTailIds.has(item.id);
+            const avatar = showMeta ? (
+              item.senderAvatarUrl ? (
+                <ExpoImage
+                  source={{ uri: item.senderAvatarUrl }}
+                  style={styles.messageAvatar}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
+              ) : (
+                <InitialsAvatar name={item.senderName} size={26} />
+              )
+            ) : (
+              // Keep bubbles in a burst aligned under the avatared one.
+              <View style={styles.avatarSpacer} />
+            );
             return (
               <AnimatedPressable
                 style={[styles.bubbleRow, mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}
                 onLongPress={() => handleLongPressMessage(item)}
                 delayLongPress={350}>
+                {!mine ? avatar : null}
                 <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-                  {isGroupChat && !mine ? <Text style={styles.senderName}>{item.senderName}</Text> : null}
+                  {isGroupChat && !mine && showMeta ? (
+                    <Text style={styles.senderName}>{item.senderName}</Text>
+                  ) : null}
                   {item.imageUrl ? (
                     <ExpoImage
                       source={{ uri: item.imageUrl }}
@@ -269,6 +306,7 @@ export default function ChatScreen() {
                     {messageTimeLabel(item.createdAt)}
                   </Text>
                 </View>
+                {mine ? avatar : null}
               </AnimatedPressable>
             );
           }}
@@ -318,9 +356,11 @@ function makeStyles(colors: ThemeColors) {
     messageList: { paddingHorizontal: 16, paddingVertical: 14, gap: 8, flexGrow: 1 },
     emptyThread: { flex: 1, alignItems: 'center', justifyContent: 'center', transform: [{ scaleY: -1 }] },
     emptyThreadText: { fontSize: 13, color: colors.textSecondary },
-    bubbleRow: { flexDirection: 'row' },
+    bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
     bubbleRowMine: { justifyContent: 'flex-end' },
     bubbleRowTheirs: { justifyContent: 'flex-start' },
+    messageAvatar: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.borderSoft },
+    avatarSpacer: { width: 26 },
     bubble: { maxWidth: '78%', borderRadius: RADII.lg, paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
     bubbleImage: { width: 200, height: 200, borderRadius: RADII.md, backgroundColor: colors.borderSoft },
     bubbleMine: { backgroundColor: colors.coral },
