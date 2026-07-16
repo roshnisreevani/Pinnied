@@ -25,14 +25,14 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'My Locker',
           tabBarIcon: ({ color }) => <User size={24} color={color} strokeWidth={1.75} />,
         }}
       />
       <Tabs.Screen
         name="groups"
         options={{
-          title: 'Groups',
+          title: 'Teams',
           tabBarIcon: ({ color }) => <Users size={24} color={color} strokeWidth={1.75} />,
         }}
       />
@@ -54,7 +54,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="feed"
         options={{
-          title: 'Feed',
+          title: 'Scoreboard',
           tabBarIcon: ({ color }) => <Images size={24} color={color} strokeWidth={1.75} />,
         }}
       />
