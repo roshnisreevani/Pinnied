@@ -70,6 +70,8 @@ function RootNavigator() {
             <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="group/brackets/[groupId]" options={{ headerShown: false }} />
             <Stack.Screen name="group/brackets/create/[groupId]" options={{ headerShown: false }} />
+            <Stack.Screen name="group/pickem/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="group/pickem/create/[groupId]" options={{ headerShown: false }} />
             <Stack.Screen name="group/brackets/detail/[bracketId]" options={{ headerShown: false }} />
           </Stack.Protected>
           <Stack.Protected guard={!isPasswordRecovery && !session}>
