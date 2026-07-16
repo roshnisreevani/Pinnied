@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 
-export type NotificationType = 'reaction' | 'comment' | 'follow';
+export type NotificationType = 'reaction' | 'comment' | 'follow' | 'comment_like' | 'comment_reply';
 
 export type NotificationItem = {
   id: string;

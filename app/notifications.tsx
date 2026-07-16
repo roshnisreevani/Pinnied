@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Flame, MessageCircle, UserPlus } from 'lucide-react-native';
+import { ChevronLeft, Flame, Heart, MessageCircle, UserPlus } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,8 +29,18 @@ function timeAgo(iso: string): string {
 }
 
 function messageFor(item: NotificationItem): string {
-  if (item.type === 'follow') return 'started following you';
-  return item.type === 'reaction' ? 'reacted to your post' : 'commented on your post';
+  switch (item.type) {
+    case 'follow':
+      return 'started following you';
+    case 'reaction':
+      return 'reacted to your post';
+    case 'comment_like':
+      return 'liked your comment';
+    case 'comment_reply':
+      return 'replied to your comment';
+    default:
+      return 'commented on your post';
+  }
 }
 
 export default function NotificationsScreen() {
@@ -142,10 +152,14 @@ export default function NotificationsScreen() {
                 <View
                   style={[
                     styles.typeIcon,
-                    item.type === 'reaction' ? styles.typeIconReaction : styles.typeIconComment,
+                    item.type === 'reaction' || item.type === 'comment_like'
+                      ? styles.typeIconReaction
+                      : styles.typeIconComment,
                   ]}>
                   {item.type === 'reaction' ? (
                     <Flame size={14} color={colors.coral} strokeWidth={2} fill={colors.coral} />
+                  ) : item.type === 'comment_like' ? (
+                    <Heart size={14} color={colors.coral} strokeWidth={2} fill={colors.coral} />
                   ) : item.type === 'follow' ? (
                     <UserPlus size={14} color={colors.blue} strokeWidth={2} />
                   ) : (

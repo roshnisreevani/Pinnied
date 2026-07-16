@@ -1,4 +1,4 @@
-import { MoreHorizontal, X } from 'lucide-react-native';
+import { Heart, MoreHorizontal, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -18,7 +18,7 @@ import { FONTS, ON_ACCENT, RADII, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
 import { errorMessage } from '@/lib/error-message';
 import { blockUser, reportContent, type ReportReason } from '@/lib/moderation';
-import { addComment, deleteComment, fetchComments, type Comment } from '@/lib/posts';
+import { addComment, deleteComment, fetchComments, setCommentLike, type Comment } from '@/lib/posts';
 
 type ReplyTarget = { parentId: string; name: string };
 
@@ -166,6 +166,23 @@ export function CommentsSection({
     ]);
   };
 
+  const handleToggleLike = async (comment: Comment) => {
+    const next = !comment.likedByMe;
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === comment.id
+          ? { ...c, likedByMe: next, likeCount: c.likeCount + (next ? 1 : -1) }
+          : c
+      )
+    );
+    try {
+      await setCommentLike(comment.id, userId, next);
+    } catch (e) {
+      Alert.alert('Could not update like', e instanceof Error ? e.message : 'Unknown error.');
+      await load();
+    }
+  };
+
   const toggleReplies = (parentId: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -190,13 +207,30 @@ export function CommentsSection({
           </Text>
           <Text style={styles.commentBody}>{c.body}</Text>
         </Text>
-        <Pressable onPress={() => startReply(c)} hitSlop={6} style={styles.replyAction}>
-          <Text style={styles.replyActionText}>Reply</Text>
+        <View style={styles.actionsRow}>
+          <Pressable onPress={() => startReply(c)} hitSlop={6}>
+            <Text style={styles.replyActionText}>Reply</Text>
+          </Pressable>
+          {c.likeCount > 0 ? (
+            <Text style={styles.replyActionText}>
+              {c.likeCount} like{c.likeCount === 1 ? '' : 's'}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      <View style={styles.rightCol}>
+        <Pressable hitSlop={10} onPress={() => handleToggleLike(c)} style={styles.likeBtn}>
+          <Heart
+            size={16}
+            color={c.likedByMe ? colors.coral : colors.textSecondary}
+            strokeWidth={1.75}
+            fill={c.likedByMe ? colors.coral : 'transparent'}
+          />
+        </Pressable>
+        <Pressable hitSlop={12} onPress={() => setMenuComment(c)} style={styles.moreBtn}>
+          <MoreHorizontal size={18} color={colors.textSecondary} strokeWidth={1.75} />
         </Pressable>
       </View>
-      <Pressable hitSlop={12} onPress={() => setMenuComment(c)} style={styles.moreBtn}>
-        <MoreHorizontal size={18} color={colors.textSecondary} strokeWidth={1.75} />
-      </Pressable>
     </View>
   );
 
@@ -287,12 +321,14 @@ function makeStyles(colors: ThemeColors) {
     commentInline: { fontSize: 15, lineHeight: 21, color: colors.text },
     commentAuthor: { fontFamily: FONTS.displaySemibold, fontSize: 15, color: colors.text },
     commentBody: { fontFamily: FONTS.displayRegular, fontSize: 15, color: colors.text },
-    replyAction: { alignSelf: 'flex-start', marginTop: 4 },
+    actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 4 },
     replyActionText: { fontSize: 12, fontFamily: FONTS.displaySemibold, color: colors.textSecondary },
     repliesToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 56 },
     repliesToggleLine: { width: 24, height: 1, backgroundColor: colors.border },
     repliesToggleText: { fontSize: 12, fontFamily: FONTS.displaySemibold, color: colors.textSecondary },
-    moreBtn: { paddingTop: 8, paddingLeft: 4 },
+    rightCol: { alignItems: 'center', gap: 6 },
+    likeBtn: { paddingTop: 8 },
+    moreBtn: { paddingLeft: 4 },
     replyingChip: {
       flexDirection: 'row',
       alignItems: 'center',

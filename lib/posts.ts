@@ -46,6 +46,8 @@ export type Comment = {
   body: string;
   parentCommentId: string | null; // set = this is a reply to that top-level comment
   createdAt: string;
+  likeCount: number;
+  likedByMe: boolean;
 };
 
 type ReactionRow = { type: string; user_id: string };
@@ -319,7 +321,7 @@ export async function fetchComments(postId: string, currentUserId?: string): Pro
   const [{ data, error }, blockedIds] = await Promise.all([
     supabase
       .from('post_comments')
-      .select('*, author:profiles(name, avatar_url)')
+      .select('*, author:profiles(name, avatar_url), likes:comment_likes(user_id)')
       .eq('post_id', postId)
       .order('created_at', { ascending: true }),
     fetchBlockedUserIds(currentUserId),
@@ -339,6 +341,7 @@ export async function fetchComments(postId: string, currentUserId?: string): Pro
     parent_comment_id: string | null;
     created_at: string;
     author: { name: string | null; avatar_url: string | null } | null;
+    likes: { user_id: string }[] | null;
   }>)
     .filter((row) => !blocked.has(row.user_id))
     .map((row) => ({
@@ -350,7 +353,28 @@ export async function fetchComments(postId: string, currentUserId?: string): Pro
       body: row.body,
       parentCommentId: row.parent_comment_id ?? null,
       createdAt: row.created_at,
+      likeCount: row.likes?.length ?? 0,
+      likedByMe: !!currentUserId && (row.likes ?? []).some((l) => l.user_id === currentUserId),
     }));
+}
+
+/**
+ * Toggles a like on a comment. Mirrors setReaction's upsert/delete contract.
+ */
+export async function setCommentLike(commentId: string, userId: string, next: boolean): Promise<void> {
+  if (next) {
+    const { error } = await supabase
+      .from('comment_likes')
+      .upsert({ comment_id: commentId, user_id: userId }, { onConflict: 'comment_id,user_id' });
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('comment_likes')
+      .delete()
+      .eq('comment_id', commentId)
+      .eq('user_id', userId);
+    if (error) throw error;
+  }
 }
 
 export async function addComment(
