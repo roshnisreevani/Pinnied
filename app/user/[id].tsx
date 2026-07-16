@@ -17,7 +17,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PickThreeField } from '@/components/profile/pick-three-field';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { SportTagsField } from '@/components/profile/sport-tags-field';
-import { TrophyCase } from '@/components/profile/trophy-case';
 import { ContentMenu, type ReportReasonOption } from '@/components/moderation/content-menu';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
@@ -288,11 +287,6 @@ export default function UserProfileScreen() {
 
         {canSeeFullProfile ? (
           <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Trophy Case</Text>
-              <TrophyCase editing={false} trophies={profile.trophies} />
-            </View>
-
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Pick Your 3</Text>
               <PickThreeField editing={false} items={profile.pickThree} />

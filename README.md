@@ -20,7 +20,7 @@ The Rec is a casual, funny, friend-group-centered space that celebrates showing 
 
 ## App structure
 
-Four tabs: **Profile** (identity, trophy case), **Groups** (create/join, chat, RSVP), **Feed** (posts + search), **Banter** (dedicated trash-talk threads).
+Four tabs: **Profile** (identity, upcoming games, game-day type), **Groups** (create/join, chat, RSVP), **Feed** (posts + search), **Banter** (dedicated trash-talk threads).
 
 ## Current features (Profile tab)
 
@@ -28,9 +28,9 @@ Four tabs: **Profile** (identity, trophy case), **Groups** (create/join, chat, R
 - Editable profile: name, location, bio ("my legend"), sport tags
 - Searchable, multi-select sport tags (135+ activities)
 - Real profile photo upload
-- Walk-up song — search and 30-second preview playback via the iTunes Search API
-- "Pick your 3" — user-uploaded photos with custom captions
-- Freeform trophy case — self-awarded badges with custom emoji, title, and subtitle
+- "Pick your 3" — user-uploaded photos with custom captions, alongside a Featured tab of posts promoted from Archive
+- Upcoming — next RSVP'd game pulled across all your groups
+- Game-day type — a short quiz that assigns a personality-style archetype, shown alongside a "people like you" link
 - "Roast me" — generates a random funny bio starter
 - Comic-style visual identity — ink outlines, hand-lettered headers, sticker-style badges
 
@@ -47,5 +47,4 @@ Four tabs: **Profile** (identity, trophy case), **Groups** (create/join, chat, R
 
 - [Expo](https://expo.dev) (React Native), SDK 54, Expo Router
 - [Supabase](https://supabase.com) — auth, Postgres database, Storage
-- iTunes Search API for walk-up song search/preview
 

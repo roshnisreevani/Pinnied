@@ -10,6 +10,7 @@ import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
+import { errorMessage } from '@/lib/error-message';
 import { fetchMyBlockedUsers, fetchMyReports, unblockUser, type BlockedUser, type MyReport } from '@/lib/moderation';
 
 const REASON_LABEL: Record<string, string> = {
@@ -52,7 +53,7 @@ export default function PrivacySafetyScreen() {
       setBlocked(b);
       setReports(r);
     } catch (e) {
-      Alert.alert('Could not load Privacy & Safety', e instanceof Error ? e.message : 'Unknown error.');
+      Alert.alert('Could not load Privacy & Safety', errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -71,7 +72,7 @@ export default function PrivacySafetyScreen() {
       await unblockUser(userId, target.blockedId);
       setBlocked((prev) => prev.filter((b) => b.blockedId !== target.blockedId));
     } catch (e) {
-      Alert.alert('Could not unblock', e instanceof Error ? e.message : 'Unknown error.');
+      Alert.alert('Could not unblock', errorMessage(e));
     } finally {
       setBusyId(null);
     }

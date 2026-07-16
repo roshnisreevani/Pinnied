@@ -11,6 +11,7 @@ import Svg, {
 
 import { WEIGHT } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
+import { useCachedUri } from '@/lib/cached-image';
 
 // Exact crest geometry (design-provided — do not redraw or re-scale). One
 // shared path drawn three times: gradient frame at full size, white ring at
@@ -43,6 +44,10 @@ type Props = {
  */
 export function CrestAvatar({ photoUri, name, size = 155 }: Props) {
   const colors = useThemeColors();
+  // react-native-svg's <Image> has no HTTP cache of its own, so without this
+  // every crest render re-downloads the full photo from Supabase Storage —
+  // this is what was blowing through the project's cached-egress quota.
+  const cachedPhotoUri = useCachedUri(photoUri);
 
   return (
     <Svg width={size} height={size} viewBox="0 0 400 400">
@@ -64,7 +69,7 @@ export function CrestAvatar({ photoUri, name, size = 155 }: Props) {
       {photoUri ? (
         <G clipPath="url(#crestClip)">
           <SvgImage
-            href={{ uri: photoUri }}
+            href={{ uri: cachedPhotoUri ?? photoUri }}
             x="0"
             y="0"
             width="400"

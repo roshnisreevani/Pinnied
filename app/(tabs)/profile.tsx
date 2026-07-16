@@ -48,6 +48,7 @@ export default function ProfileScreen() {
   const [shareOpen, setShareOpen] = useState(false);
   const [gameDayShareOpen, setGameDayShareOpen] = useState(false);
   const [avatarViewerOpen, setAvatarViewerOpen] = useState(false);
+  const [activeContentTab, setActiveContentTab] = useState<'pickThree' | 'featured'>('pickThree');
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
   const [groupsCount, setGroupsCount] = useState(0);
@@ -126,10 +127,20 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Top row: settings/bell icons (name moved into the centered header).
-            The old person-add icon linked to /requests — gone now that follows
-            are instant and there's nothing to approve. */}
+        {/* Top row: split left (Settings, Saved) / right (Connections, Archive,
+            Notifications) instead of one clump — easier to scan, and keeps
+            the two "personal config" icons away from the three "content"
+            ones. The old person-add icon linked to /requests — gone now that
+            follows are instant and there's nothing to approve. */}
         <View style={styles.topRow}>
+          <View style={styles.topIcons}>
+            <AnimatedPressable hitSlop={8} onPress={() => router.push('/settings')}>
+              <Settings size={22} color={colors.text} strokeWidth={1.75} />
+            </AnimatedPressable>
+            <AnimatedPressable hitSlop={8} onPress={() => router.push('/saved-posts')}>
+              <Bookmark size={22} color={colors.text} strokeWidth={1.75} />
+            </AnimatedPressable>
+          </View>
           <View style={styles.topIcons}>
             <AnimatedPressable hitSlop={8} onPress={() => router.push('/connections')}>
               <Users size={22} color={colors.text} strokeWidth={1.75} />
@@ -137,17 +148,11 @@ export default function ProfileScreen() {
             <AnimatedPressable hitSlop={8} onPress={() => router.push('/archive')}>
               <Archive size={22} color={colors.text} strokeWidth={1.75} />
             </AnimatedPressable>
-            <AnimatedPressable hitSlop={8} onPress={() => router.push('/saved-posts')}>
-              <Bookmark size={22} color={colors.text} strokeWidth={1.75} />
-            </AnimatedPressable>
             <AnimatedPressable hitSlop={8} onPress={() => router.push('/notifications')} style={styles.iconWrap}>
               <Bell size={22} color={colors.text} strokeWidth={1.75} />
               {unreadNotificationsCount > 0 ? (
                 <IconBadge count={unreadNotificationsCount} color={colors.coral} styles={styles} />
               ) : null}
-            </AnimatedPressable>
-            <AnimatedPressable hitSlop={8} onPress={() => router.push('/settings')}>
-              <Settings size={22} color={colors.text} strokeWidth={1.75} />
             </AnimatedPressable>
           </View>
         </View>
@@ -273,19 +278,33 @@ export default function ProfileScreen() {
           </Section>
         ) : null}
 
-        {/* Pick Your 3 — kept alongside the newer sections since photos are
-            still the clearest way for someone to see who you actually are. */}
-        <Section title="Pick Your 3" styles={styles}>
-          <PickThreeField editing={false} items={profile.pickThree} />
-        </Section>
+        {/* Pick Your 3 / Featured — a tab switcher instead of two stacked
+            grids, so both are always reachable (Featured no longer hides
+            when empty) without doubling the scroll length. */}
+        <View style={styles.contentTabsWrap}>
+          <View style={styles.contentTabsRow}>
+            <AnimatedPressable onPress={() => setActiveContentTab('pickThree')}>
+              <Text style={[styles.contentTab, activeContentTab === 'pickThree' && styles.contentTabActive]}>
+                Pick Your 3
+              </Text>
+              {activeContentTab === 'pickThree' ? <View style={styles.contentTabIndicator} /> : null}
+            </AnimatedPressable>
+            <AnimatedPressable onPress={() => setActiveContentTab('featured')}>
+              <Text style={[styles.contentTab, activeContentTab === 'featured' && styles.contentTabActive]}>
+                Featured
+              </Text>
+              {activeContentTab === 'featured' ? <View style={styles.contentTabIndicator} /> : null}
+            </AnimatedPressable>
+          </View>
 
-        {/* Featured — posts promoted from Archive, deliberately separate
-            from Pick Your 3. Read-only here; managed from /archive. */}
-        {featuredPosts.length > 0 ? (
-          <Section title="Featured" styles={styles}>
+          {activeContentTab === 'pickThree' ? (
+            <PickThreeField editing={false} items={profile.pickThree} />
+          ) : featuredPosts.length > 0 ? (
             <PostThumbnailGrid posts={featuredPosts} colors={colors} />
-          </Section>
-        ) : null}
+          ) : (
+            <Text style={styles.contentEmptyText}>Nothing featured yet.</Text>
+          )}
+        </View>
       </ScrollView>
 
       {userId ? (
@@ -450,7 +469,7 @@ function makeStyles(colors: ThemeColors) {
       borderColor: colors.background,
     },
     iconBadgeText: { fontSize: 9, fontWeight: WEIGHT.bold, color: ON_ACCENT },
-    topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+    topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     topIcons: { flexDirection: 'row', alignItems: 'center', gap: 16 },
     // Everything in the header is center-aligned, stacked photo-first.
     headerStack: { alignItems: 'center', gap: 8, marginTop: 8 },
@@ -523,6 +542,24 @@ function makeStyles(colors: ThemeColors) {
     primaryButtonText: { fontWeight: WEIGHT.semibold, fontSize: 14, color: ON_ACCENT },
     section: { marginTop: 26, gap: 10 },
     sectionTitle: { fontSize: 13, fontWeight: WEIGHT.semibold, color: colors.text },
+    contentTabsWrap: { marginTop: 26, gap: 12 },
+    contentTabsRow: {
+      flexDirection: 'row',
+      gap: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderSoft,
+    },
+    contentTab: { fontSize: 13, color: colors.textSecondary, paddingBottom: 8 },
+    contentTabActive: { color: colors.text, fontWeight: WEIGHT.semibold },
+    contentTabIndicator: {
+      position: 'absolute',
+      bottom: -1,
+      left: 0,
+      right: 0,
+      height: 2,
+      backgroundColor: colors.coral,
+    },
+    contentEmptyText: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', paddingVertical: 20 },
     upcomingCard: { backgroundColor: colors.borderSoft, borderRadius: RADII.lg, padding: 14 },
     upcomingTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
     upcomingDate: { fontSize: 11, fontWeight: WEIGHT.semibold, color: colors.coral },

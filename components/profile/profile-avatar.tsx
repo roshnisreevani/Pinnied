@@ -1,5 +1,6 @@
+import { Image } from 'expo-image';
 import { Camera } from 'lucide-react-native';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
@@ -21,7 +22,11 @@ export function ProfileAvatar({ name, photoUri, size = 76, editable, onPress }: 
   const colors = useThemeColors();
 
   const content = photoUri ? (
-    <Image source={{ uri: photoUri }} style={{ width: size, height: size, borderRadius: size / 2 }} />
+    <Image
+      source={{ uri: photoUri }}
+      style={{ width: size, height: size, borderRadius: size / 2 }}
+      cachePolicy="disk"
+    />
   ) : (
     <InitialsAvatar name={name} size={size} />
   );

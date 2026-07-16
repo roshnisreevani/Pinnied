@@ -6,9 +6,11 @@ This Privacy Policy explains how Pinnied ("we," "us," "our," or "the App") colle
 
 **Account information.** When you sign up, we collect your email address and a password (handled securely through our authentication provider, Supabase — we never see or store your plain-text password ourselves).
 
-**Profile information.** Information you choose to add to your profile, including your name, location, bio, sport tags, a profile photo, up to three additional photos with captions, self-added trophy/badge entries, and an optional "walk-up song" selection.
+**Profile information.** Information you choose to add to your profile, including your name, location, bio, sport tags, a profile photo, and up to three additional photos with captions.
 
-**Song search data.** If you use the walk-up song feature, your search terms are sent to Apple's iTunes Search API to find matching songs. We do not store your search history beyond the song you select.
+**Game-day type quiz.** If you take the game-day type quiz on your profile, we store your resulting type (e.g. "The Strategist"), not your individual quiz answers.
+
+**Safety reports and blocks.** If you block another user or report content, we store who you blocked or reported, the reason, and when, so we can act on it and so blocked users stay hidden from you.
 
 **Usage information.** Basic technical information needed to run the app, such as device type and app version, may be collected automatically for debugging and reliability purposes.
 
@@ -19,8 +21,9 @@ We do not collect precise financial information, government ID numbers, or healt
 We use your information to:
 - Create and maintain your account
 - Display your profile to other users of the app (per your privacy settings)
-- Provide features you choose to use, like song search and photo uploads
+- Provide features you choose to use, like the game-day type quiz and photo uploads
 - Maintain the security and reliability of the app
+- Review reports and enforce blocks to keep the app safe
 - Communicate with you about your account when necessary
 
 We do not sell your personal information, and we do not share it with advertisers.
@@ -28,7 +31,6 @@ We do not sell your personal information, and we do not share it with advertiser
 ## 3. Third-party services we use
 
 - **Supabase** — provides authentication, database storage, and file storage for photos. Supabase processes data on our behalf under its own security practices.
-- **Apple iTunes Search API** — used only to search songs for the walk-up song feature.
 
 We do not share your data with any other third party except as required by law.
 
@@ -88,7 +90,7 @@ You may delete your account at any time in Settings, which permanently removes y
 
 ## 6. Third-party services
 
-Pinnied uses Supabase for authentication and data storage, and Apple's iTunes Search API for song search. Your use of those features is also subject to those providers' own terms where applicable.
+Pinnied uses Supabase for authentication and data storage. Your use of that feature is also subject to Supabase's own terms where applicable.
 
 ## 7. Disclaimers
 

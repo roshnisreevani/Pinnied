@@ -9,13 +9,6 @@ export type PickThreeItem = {
   caption: string;
 };
 
-export type WalkupSong = {
-  title: string;
-  artist: string;
-  artworkUrl: string | null;
-  previewUrl: string;
-};
-
 export type Trophy = {
   id: string;
   icon: string;
@@ -35,7 +28,6 @@ export type Profile = {
   sportTags: SportTag[];
   legend: string;
   avatarUrl: string | null;
-  walkupSong: WalkupSong | null;
   pickThree: PickThreeItem[];
   trophies: Trophy[];
   gameDayType: GameDayType | null;
@@ -49,7 +41,6 @@ export function emptyProfile(id: string): Profile {
     sportTags: [],
     legend: '',
     avatarUrl: null,
-    walkupSong: null,
     pickThree: [],
     trophies: [],
     gameDayType: null,
@@ -63,18 +54,12 @@ type ProfileRow = {
   sport_tags: string[] | null;
   legend: string | null;
   avatar_url: string | null;
-  walkup_song_title: string | null;
-  walkup_song_artist: string | null;
-  walkup_song_artwork_url: string | null;
-  walkup_song_preview_url: string | null;
   pick_three: PickThreeItem[] | null;
   trophies: Trophy[] | null;
   game_day_type: string | null;
 };
 
 function rowToProfile(row: ProfileRow): Profile {
-  const hasSong = !!row.walkup_song_title && !!row.walkup_song_preview_url;
-
   return {
     id: row.id,
     name: row.name ?? '',
@@ -82,14 +67,6 @@ function rowToProfile(row: ProfileRow): Profile {
     sportTags: (row.sport_tags ?? []) as SportTag[],
     legend: row.legend ?? '',
     avatarUrl: row.avatar_url,
-    walkupSong: hasSong
-      ? {
-          title: row.walkup_song_title as string,
-          artist: row.walkup_song_artist ?? 'Unknown artist',
-          artworkUrl: row.walkup_song_artwork_url,
-          previewUrl: row.walkup_song_preview_url as string,
-        }
-      : null,
     pickThree: row.pick_three ?? [],
     trophies: row.trophies ?? [],
     gameDayType: (row.game_day_type as GameDayType | null) ?? null,
@@ -113,10 +90,6 @@ export async function saveProfile(profile: Profile): Promise<void> {
     sport_tags: profile.sportTags,
     legend: profile.legend,
     avatar_url: profile.avatarUrl,
-    walkup_song_title: profile.walkupSong?.title ?? null,
-    walkup_song_artist: profile.walkupSong?.artist ?? null,
-    walkup_song_artwork_url: profile.walkupSong?.artworkUrl ?? null,
-    walkup_song_preview_url: profile.walkupSong?.previewUrl ?? null,
     pick_three: profile.pickThree,
     trophies: profile.trophies,
     game_day_type: profile.gameDayType,

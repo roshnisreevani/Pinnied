@@ -5,10 +5,11 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, View } 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { FONTS, ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme, useThemeColors } from '@/contexts/theme-context';
 import { deleteAccount } from '@/lib/account';
+import { errorMessage } from '@/lib/error-message';
 import { fetchSettings, updateSetting, type UserSettings } from '@/lib/settings';
 
 
@@ -30,7 +31,7 @@ export default function SettingsScreen() {
       const fetched = await fetchSettings(userId);
       setSettings(fetched);
     } catch (e) {
-      Alert.alert('Could not load settings', e instanceof Error ? e.message : 'Unknown error.');
+      Alert.alert('Could not load settings', errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -48,8 +49,15 @@ export default function SettingsScreen() {
       await updateSetting(userId, column, nextValue);
     } catch (e) {
       setSettings(settings);
-      Alert.alert('Could not save', e instanceof Error ? e.message : 'Unknown error.');
+      Alert.alert('Could not save', errorMessage(e));
     }
+  };
+
+  const handleSignOut = () => {
+    Alert.alert('Log out?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log Out', style: 'destructive', onPress: signOut },
+    ]);
   };
 
   const handleDeleteAccount = () => {
@@ -68,7 +76,7 @@ export default function SettingsScreen() {
               await deleteAccount(userId);
             } catch (e) {
               setDeleting(false);
-              Alert.alert('Could not delete account', e instanceof Error ? e.message : 'Unknown error.');
+              Alert.alert('Could not delete account', errorMessage(e));
             }
           },
         },
@@ -186,7 +194,7 @@ export default function SettingsScreen() {
           </Section>
 
           <Section title="Account" colors={colors} styles={styles}>
-            <AnimatedPressable style={styles.logoutRow} onPress={signOut}>
+            <AnimatedPressable style={styles.logoutRow} onPress={handleSignOut}>
               <Text style={styles.logoutText}>Log Out</Text>
             </AnimatedPressable>
           </Section>
@@ -265,7 +273,7 @@ function makeStyles(colors: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    headerTitle: { fontSize: 16, fontFamily: FONTS.displaySemibold, color: colors.text },
+    headerTitle: { fontSize: 16, fontWeight: WEIGHT.bold, color: colors.text },
     content: { padding: 20, paddingBottom: 60, gap: 4 },
     section: { marginTop: 22, gap: 8 },
     sectionTitle: {
@@ -292,7 +300,7 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.background,
     },
     rowText: { flex: 1, paddingRight: 12, gap: 2 },
-    rowLabel: { fontSize: 14, fontFamily: FONTS.displayMedium, color: colors.text },
+    rowLabel: { fontSize: 14, fontWeight: WEIGHT.medium, color: colors.text },
     rowSublabel: { fontSize: 12, color: colors.textSecondary },
     logoutRow: {
       paddingHorizontal: 14,
@@ -302,7 +310,7 @@ function makeStyles(colors: ThemeColors) {
       borderRadius: RADII.md,
       backgroundColor: colors.background,
     },
-    logoutText: { fontSize: 14, fontFamily: FONTS.displaySemibold, color: colors.text },
+    logoutText: { fontSize: 14, fontWeight: WEIGHT.semibold, color: colors.text },
     dangerZone: { marginTop: 34, gap: 8, paddingTop: 18, borderTopWidth: 1, borderTopColor: colors.border },
     dangerLabel: {
       fontSize: 12,
@@ -317,7 +325,7 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 13,
       alignItems: 'center',
     },
-    deleteButtonText: { fontFamily: FONTS.displaySemibold, color: ON_ACCENT, fontSize: 14 },
+    deleteButtonText: { fontWeight: WEIGHT.semibold, color: ON_ACCENT, fontSize: 14 },
     dangerHint: { fontSize: 12, color: colors.textSecondary },
   });
 }

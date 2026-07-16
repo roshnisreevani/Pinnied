@@ -16,14 +16,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { PickThreeField, type PickThreeSlot } from '@/components/profile/pick-three-field';
 import { ProfileAvatar } from '@/components/profile/profile-avatar';
 import { SportTagsField } from '@/components/profile/sport-tags-field';
-import { WalkupSongPlayer } from '@/components/profile/walkup-song-player';
-import { WalkupSongSearch } from '@/components/profile/walkup-song-search';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { errorMessage } from '@/lib/error-message';
-import type { ItunesTrack } from '@/lib/itunes';
 import { pickPhoto } from '@/lib/pick-photo';
 import { fetchProfile, saveProfile, type Profile, type Trophy } from '@/lib/profile';
 import { ROAST_LINES } from '@/lib/roast-lines';
@@ -51,7 +48,6 @@ export default function EditProfileScreen() {
   const [tags, setTags] = useState<SportTag[]>([]);
   const [legend, setLegend] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
-  const [song, setSong] = useState<Profile['walkupSong']>(null);
   const [slots, setSlots] = useState<PickThreeSlot[]>(EMPTY_SLOTS);
   // Trophy Case UI no longer exists anywhere, but `trophies` is still a real
   // column on the profile row — carried through from the initial load so
@@ -72,7 +68,6 @@ export default function EditProfileScreen() {
       setTags(profile.sportTags);
       setLegend(profile.legend);
       setAvatarUri(profile.avatarUrl);
-      setSong(profile.walkupSong);
       const nextSlots: PickThreeSlot[] = [0, 1, 2].map((i) => {
         const item = profile.pickThree[i];
         return item ? { uri: item.url, caption: item.caption } : { uri: null, caption: '' };
@@ -93,15 +88,6 @@ export default function EditProfileScreen() {
 
   const toggleTag = (tag: SportTag) => {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
-  };
-
-  const handleSelectSong = (track: ItunesTrack) => {
-    setSong({
-      title: track.trackName,
-      artist: track.artistName,
-      artworkUrl: track.artworkUrl,
-      previewUrl: track.previewUrl,
-    });
   };
 
   const handleRoastMe = () => {
@@ -170,7 +156,6 @@ export default function EditProfileScreen() {
         sportTags: tags,
         legend: legend.trim(),
         avatarUrl,
-        walkupSong: song,
         pickThree: uploaded.filter((item): item is { url: string; caption: string } => item !== null),
         trophies,
         gameDayType,
@@ -262,19 +247,6 @@ export default function EditProfileScreen() {
           </View>
         </Section>
 
-        <Section title="Walk-up song" styles={styles}>
-          {song ? (
-            <View style={styles.selectedSongRow}>
-              <WalkupSongPlayer key={song.previewUrl} song={song} />
-              <AnimatedPressable onPress={() => setSong(null)} hitSlop={8}>
-                <Text style={styles.changeSongText}>change song</Text>
-              </AnimatedPressable>
-            </View>
-          ) : (
-            <WalkupSongSearch onSelect={handleSelectSong} />
-          )}
-        </Section>
-
         <Section title="Pick your 3" styles={styles}>
           <PickThreeField
             editing
@@ -356,7 +328,5 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 7,
     },
     roastButtonText: { fontWeight: WEIGHT.semibold, fontSize: 12, color: colors.background },
-    selectedSongRow: { gap: 8 },
-    changeSongText: { fontSize: 12, color: colors.coral, alignSelf: 'flex-start', fontWeight: WEIGHT.medium },
   });
 }

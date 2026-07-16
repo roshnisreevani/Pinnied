@@ -1,6 +1,7 @@
+import { Image } from 'expo-image';
 import { Plus, X } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { Image, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { RADII, type ThemeColors } from '@/constants/style';
@@ -45,7 +46,7 @@ export function PickThreeField(props: Props) {
                 style={[styles.square, !slot.uri && styles.squareEmpty]}
                 onPress={() => onPickPhoto(index)}>
                 {slot.uri ? (
-                  <Image source={{ uri: slot.uri }} style={styles.image} />
+                  <Image source={{ uri: slot.uri }} style={styles.image} cachePolicy="disk" />
                 ) : (
                   <Plus size={26} color={colors.textSecondary} strokeWidth={1.75} />
                 )}
@@ -85,15 +86,13 @@ export function PickThreeField(props: Props) {
         return (
           <View key={index} style={styles.column}>
             <View style={[styles.square, !item && styles.squareEmpty]}>
-              {item ? (
-                <Image source={{ uri: item.url }} style={styles.image} />
-              ) : (
-                <Text style={styles.emptyIcon}>—</Text>
-              )}
+              {item ? <Image source={{ uri: item.url }} style={styles.image} cachePolicy="disk" /> : null}
             </View>
-            <Text numberOfLines={2} style={styles.captionText}>
-              {item ? item.caption : 'empty pedestal'}
-            </Text>
+            {item ? (
+              <Text numberOfLines={2} style={styles.captionText}>
+                {item.caption}
+              </Text>
+            ) : null}
           </View>
         );
       })}
@@ -117,7 +116,6 @@ function makeStyles(colors: ThemeColors) {
     },
     squareEmpty: { borderStyle: 'dashed' },
     image: { width: '100%', height: '100%' },
-    emptyIcon: { fontSize: 20, color: colors.textSecondary, opacity: 0.6 },
     changeBadge: {
       position: 'absolute',
       bottom: 4,
