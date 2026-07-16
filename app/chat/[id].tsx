@@ -107,6 +107,7 @@ export default function ChatScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const recordStartRef = useRef(0);
   const autoStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordingActiveRef = useRef(false);
   const infoLoaded = useRef(false);
   // load() is memoized with a stable dep array, so it can't read blockedIds
   // straight from state without going stale — this ref always has the
@@ -196,7 +197,10 @@ export default function ChatScreen() {
   };
 
   const handleMicPressIn = async () => {
-    if (sending || isRecording) return;
+    // Synchronous ref, not the isRecording state var — the auto-stop timer
+    // and the user's own release can land in the same tick, and state
+    // updates aren't guaranteed to be visible to both by then.
+    if (sending || recordingActiveRef.current) return;
     try {
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
@@ -207,6 +211,7 @@ export default function ChatScreen() {
       await recorder.prepareToRecordAsync();
       recorder.record();
       recordStartRef.current = Date.now();
+      recordingActiveRef.current = true;
       setIsRecording(true);
       autoStopTimer.current = setTimeout(handleMicPressOut, MAX_VOICE_NOTE_SECONDS * 1000);
     } catch (e) {
@@ -215,7 +220,8 @@ export default function ChatScreen() {
   };
 
   const handleMicPressOut = async () => {
-    if (!isRecording) return;
+    if (!recordingActiveRef.current) return;
+    recordingActiveRef.current = false;
     if (autoStopTimer.current) {
       clearTimeout(autoStopTimer.current);
       autoStopTimer.current = null;

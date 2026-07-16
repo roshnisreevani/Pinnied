@@ -306,6 +306,14 @@ export async function fetchMessages(
     .filter((row) => !hiddenIds.has(row.id))
     .map((row) => {
       const replySource = row.reply_to_message_id ? byId.get(row.reply_to_message_id) : undefined;
+      // Mask the same way the target message itself is masked — otherwise a
+      // message deleted "for everyone" would still leak its text into any
+      // reply quoting it.
+      const replyContent = replySource
+        ? replySource.deleted_at
+          ? 'Message deleted'
+          : replySource.content
+        : 'Original message';
       return {
         id: row.id,
         senderId: row.sender_id,
@@ -319,7 +327,7 @@ export async function fetchMessages(
           ? {
               id: row.reply_to_message_id,
               senderName: replySource?.profiles?.name?.trim() || 'Someone',
-              content: replySource ? replySource.content : 'Original message',
+              content: replyContent,
             }
           : null,
         voiceUrl: row.deleted_at ? null : row.voice_url,
