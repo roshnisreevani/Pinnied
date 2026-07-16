@@ -22,8 +22,27 @@ import { addComment, deleteComment, fetchComments, setCommentLike, type Comment 
 
 type ReplyTarget = { parentId: string; name: string };
 
+// The comment data ops, injectable so this component works for any parent
+// entity (posts by default; Pick'Em passes its own impls). Signatures match
+// lib/posts exactly, so the post callers get the defaults with no change.
+export type CommentApi = {
+  fetch: (targetId: string, userId: string) => Promise<Comment[]>;
+  add: (targetId: string, userId: string, body: string, parentId?: string | null) => Promise<void>;
+  remove: (commentId: string) => Promise<void>;
+  like: (commentId: string, userId: string, next: boolean) => Promise<void>;
+};
+
+const POST_COMMENT_API: CommentApi = {
+  fetch: fetchComments,
+  add: addComment,
+  remove: deleteComment,
+  like: setCommentLike,
+};
+
 type Props = {
   postId: string;
+  // Overrides the post-backed comment data ops (Pick'Em supplies its own).
+  commentApi?: CommentApi;
   // Author of the post these comments belong to — lets the post owner
   // delete any comment on their own post, not just ones they wrote.
   postAuthorId: string | null;
@@ -48,6 +67,7 @@ type Props = {
  */
 export function CommentsSection({
   postId,
+  commentApi,
   postAuthorId,
   userId,
   onCommentAdded,
@@ -57,6 +77,7 @@ export function CommentsSection({
 }: Props) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const api = commentApi ?? POST_COMMENT_API;
 
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,13 +89,13 @@ export function CommentsSection({
 
   const load = useCallback(async () => {
     try {
-      setComments(await fetchComments(postId, userId));
+      setComments(await api.fetch(postId, userId));
     } catch (e) {
       Alert.alert('Could not load comments', e instanceof Error ? e.message : 'Unknown error.');
     } finally {
       setLoading(false);
     }
-  }, [postId, userId]);
+  }, [api, postId, userId]);
 
   useEffect(() => {
     load();
@@ -99,7 +120,7 @@ export function CommentsSection({
     if (!body.trim()) return;
     setSending(true);
     try {
-      await addComment(postId, userId, body, replyTo?.parentId ?? null);
+      await api.add(postId, userId, body, replyTo?.parentId ?? null);
       if (replyTo) {
         setExpandedIds((prev) => new Set(prev).add(replyTo.parentId)); // show the new reply
       }
@@ -126,7 +147,7 @@ export function CommentsSection({
         style: 'destructive',
         onPress: async () => {
           try {
-            await deleteComment(comment.id);
+            await api.remove(comment.id);
             await load();
             onCommentAdded();
           } catch (e) {
@@ -176,7 +197,7 @@ export function CommentsSection({
       )
     );
     try {
-      await setCommentLike(comment.id, userId, next);
+      await api.like(comment.id, userId, next);
     } catch (e) {
       Alert.alert('Could not update like', e instanceof Error ? e.message : 'Unknown error.');
       await load();

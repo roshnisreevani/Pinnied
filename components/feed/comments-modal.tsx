@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Keyboard, Modal, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { CommentsSection } from '@/components/feed/comments-section';
+import { CommentsSection, type CommentApi } from '@/components/feed/comments-section';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { FONTS, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
@@ -11,6 +11,9 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   postId: string | null;
+  // Optional: makes the sheet operate on a non-post entity (e.g. Pick'Em).
+  commentApi?: CommentApi;
+  title?: string;
   // Author of the post these comments belong to — lets the post owner
   // delete any comment on their own post, not just ones they wrote.
   postAuthorId: string | null;
@@ -30,6 +33,8 @@ export function CommentsModal({
   visible,
   onClose,
   postId,
+  commentApi,
+  title = 'Comments',
   postAuthorId,
   userId,
   onCommentAdded,
@@ -71,7 +76,7 @@ export function CommentsModal({
 
         <View style={styles.header}>
           <View style={{ width: 48 }} />
-          <Text style={styles.headerTitle}>Comments</Text>
+          <Text style={styles.headerTitle}>{title}</Text>
           <AnimatedPressable onPress={onClose} hitSlop={8} style={styles.doneWrap}>
             <Text style={styles.closeText}>Done</Text>
           </AnimatedPressable>
@@ -80,6 +85,7 @@ export function CommentsModal({
         {visible && postId ? (
           <CommentsSection
             postId={postId}
+            commentApi={commentApi}
             postAuthorId={postAuthorId}
             userId={userId}
             onCommentAdded={onCommentAdded}
