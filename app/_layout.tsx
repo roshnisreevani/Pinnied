@@ -52,6 +52,12 @@ function RootNavigator() {
             <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="new-chat" options={{ headerShown: false, presentation: 'modal' }} />
             <Stack.Screen name="settings" options={{ headerShown: false }} />
+            <Stack.Screen name="verify-account" options={{ headerShown: false, presentation: 'modal' }} />
+            <Stack.Screen name="create-open-game" options={{ headerShown: false, presentation: 'modal' }} />
+            <Stack.Screen name="open-game/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="edit-open-game/[id]" options={{ headerShown: false, presentation: 'modal' }} />
+            <Stack.Screen name="create-highlight" options={{ headerShown: false, presentation: 'modal' }} />
+            <Stack.Screen name="highlight/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="find-people" options={{ headerShown: false }} />
             <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="u/[id]" options={{ headerShown: false }} />

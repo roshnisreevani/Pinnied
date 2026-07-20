@@ -1,16 +1,19 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import { Plus, Users } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GroupCard } from '@/components/groups/group-card';
+import { OpenGameCard } from '@/components/groups/open-game-card';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
+import { errorMessage } from '@/lib/error-message';
 import {
   fetchMyGroups,
   fetchMyPendingGroupInvites,
@@ -18,6 +21,10 @@ import {
   type Group,
   type PendingGroupInvite,
 } from '@/lib/groups';
+import { discoverOpenGames, joinOpenGame, type OpenGame } from '@/lib/open-games';
+import { fetchIsVerified } from '@/lib/verification';
+
+type GroupsTab = 'mine' | 'discover';
 
 export default function GroupsScreen() {
   const { session } = useAuth();
@@ -26,11 +33,20 @@ export default function GroupsScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
+  const [tab, setTab] = useState<GroupsTab>('mine');
+
   const [groups, setGroups] = useState<Group[]>([]);
   const [invites, setInvites] = useState<PendingGroupInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [respondingId, setRespondingId] = useState<string | null>(null);
+
+  const [games, setGames] = useState<OpenGame[]>([]);
+  const [myGoingIds, setMyGoingIds] = useState<Set<string>>(new Set());
+  const [gamesLoading, setGamesLoading] = useState(true);
+  const [gamesError, setGamesError] = useState<string | null>(null);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [isVerified, setIsVerified] = useState(false);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -53,11 +69,60 @@ export default function GroupsScreen() {
     [userId]
   );
 
+  const loadGames = useCallback(async () => {
+    if (!userId) return;
+    setGamesLoading(true);
+    setGamesError(null);
+    try {
+      fetchIsVerified(userId).then(setIsVerified).catch(() => {});
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setGamesError('Location access is off — turn it on in Settings to see games near you.');
+        setGames([]);
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({});
+      const fetched = await discoverOpenGames(position.coords.latitude, position.coords.longitude);
+      setGames(fetched);
+    } catch (e) {
+      setGamesError(errorMessage(e, 'Could not load games near you.'));
+    } finally {
+      setGamesLoading(false);
+    }
+  }, [userId]);
+
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load])
   );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (tab === 'discover') loadGames();
+    }, [tab, loadGames])
+  );
+
+  const handleJoinGame = async (game: OpenGame) => {
+    if (!userId) return;
+    setJoiningId(game.id);
+    try {
+      const result = await joinOpenGame(game.id);
+      setMyGoingIds((prev) => new Set(prev).add(game.id));
+      if (result === 'going') {
+        setGames((prev) => prev.map((g) => (g.id === game.id ? { ...g, goingCount: g.goingCount + 1 } : g)));
+      } else if (result === 'waitlisted') {
+        Alert.alert("You're on the waitlist", "This game is full — we'll add you automatically if a spot opens up.");
+      } else {
+        Alert.alert('Request sent', "The organizer will review your request to join.");
+      }
+    } catch (e) {
+      Alert.alert('Could not join', errorMessage(e, "You may need a slightly older account to join — give it a few days."));
+    } finally {
+      setJoiningId(null);
+    }
+  };
 
   const handleRespond = async (invite: PendingGroupInvite, accept: boolean) => {
     if (!userId) return;
@@ -84,14 +149,68 @@ export default function GroupsScreen() {
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Teams</Text>
-        <AnimatedPressable style={styles.createButton} onPress={() => router.push('/create-group')}>
-          <Plus size={16} color={ON_ACCENT} strokeWidth={2.5} />
-          <Text style={styles.createButtonText}>Create Group</Text>
+        <Text style={styles.headerTitle}>{tab === 'mine' ? 'Teams' : 'Discover'}</Text>
+        {tab === 'mine' ? (
+          <AnimatedPressable style={styles.createButton} onPress={() => router.push('/create-group')}>
+            <Plus size={16} color={ON_ACCENT} strokeWidth={2.5} />
+            <Text style={styles.createButtonText}>Create Group</Text>
+          </AnimatedPressable>
+        ) : (
+          <AnimatedPressable
+            style={styles.createButton}
+            onPress={() => (isVerified ? router.push('/create-open-game') : router.push('/verify-account'))}>
+            <Plus size={16} color={ON_ACCENT} strokeWidth={2.5} />
+            <Text style={styles.createButtonText}>Post Game</Text>
+          </AnimatedPressable>
+        )}
+      </View>
+
+      <View style={styles.segmentWrap}>
+        <AnimatedPressable
+          style={[styles.segment, tab === 'mine' && styles.segmentActive]}
+          onPress={() => setTab('mine')}>
+          <Text style={[styles.segmentText, tab === 'mine' && styles.segmentTextActive]}>My Groups</Text>
+        </AnimatedPressable>
+        <AnimatedPressable
+          style={[styles.segment, tab === 'discover' && styles.segmentActive]}
+          onPress={() => setTab('discover')}>
+          <Text style={[styles.segmentText, tab === 'discover' && styles.segmentTextActive]}>Discover</Text>
         </AnimatedPressable>
       </View>
 
-      <FlatList
+      {tab === 'discover' ? (
+        gamesLoading ? (
+          <View style={styles.loading}>
+            <ActivityIndicator color={colors.text} />
+          </View>
+        ) : (
+          <FlatList
+            data={games}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            refreshControl={<RefreshControl refreshing={false} onRefresh={loadGames} tintColor={colors.text} />}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Users size={40} color={colors.textSecondary} strokeWidth={1.5} />
+                <Text style={styles.emptyTitle}>{gamesError ? 'Could not load games' : 'No open games nearby'}</Text>
+                <Text style={styles.emptyText}>
+                  {gamesError ?? 'Nobody has posted an open game near you yet — be the first.'}
+                </Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <OpenGameCard
+                game={item}
+                onPress={() => router.push(`/open-game/${item.id}`)}
+                onJoin={() => handleJoinGame(item)}
+                joining={joiningId === item.id}
+                alreadyGoing={myGoingIds.has(item.id)}
+              />
+            )}
+          />
+        )
+      ) : (
+        <FlatList
         data={groups}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
@@ -150,7 +269,8 @@ export default function GroupsScreen() {
           </View>
         }
         renderItem={({ item }) => <GroupCard group={item} onPress={() => router.push(`/group/${item.id}`)} />}
-      />
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -178,6 +298,18 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 9,
     },
     createButtonText: { color: ON_ACCENT, fontWeight: WEIGHT.semibold, fontSize: 13 },
+    segmentWrap: {
+      flexDirection: 'row',
+      backgroundColor: colors.borderSoft,
+      borderRadius: RADII.md,
+      padding: 3,
+      marginHorizontal: 20,
+      marginBottom: 14,
+    },
+    segment: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: RADII.sm },
+    segmentActive: { backgroundColor: colors.background },
+    segmentText: { fontSize: 13, color: colors.textSecondary },
+    segmentTextActive: { fontWeight: WEIGHT.semibold, color: colors.text },
     list: { paddingHorizontal: 20, paddingBottom: 48, flexGrow: 1 },
     invitesSection: { marginBottom: 20, gap: 10 },
     invitesTitle: { fontSize: 13, fontWeight: WEIGHT.bold, color: colors.text },

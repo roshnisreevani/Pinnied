@@ -1,17 +1,23 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Trophy } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PostThumbnailGrid } from '@/components/feed/post-thumbnail-grid';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { WEIGHT, type ThemeColors } from '@/constants/style';
+import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { ARCHIVE_WINDOW_DAYS } from '@/lib/archive';
 import { errorMessage } from '@/lib/error-message';
+import {
+  deleteHighlightClip,
+  fetchArchivedHighlightClips,
+  unarchiveHighlightClip,
+  type HighlightClip,
+} from '@/lib/highlights';
 import {
   deletePost,
   featurePost,
@@ -21,6 +27,8 @@ import {
   unfeaturePost,
   type Post,
 } from '@/lib/posts';
+
+type ArchiveTab = 'posts' | 'highlights';
 
 /**
  * Browse + manage your own aged-out or manually-deleted posts. Nothing here
@@ -36,19 +44,23 @@ export default function ArchiveScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
+  const [tab, setTab] = useState<ArchiveTab>('posts');
   const [posts, setPosts] = useState<Post[]>([]);
   const [featuredIds, setFeaturedIds] = useState<Set<string>>(new Set());
+  const [highlights, setHighlights] = useState<HighlightClip[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      const [fetchedPosts, fetchedFeaturedIds] = await Promise.all([
+      const [fetchedPosts, fetchedFeaturedIds, fetchedHighlights] = await Promise.all([
         fetchArchivedPosts(userId),
         fetchFeaturedPostIds(userId),
+        fetchArchivedHighlightClips(userId),
       ]);
       setPosts(fetchedPosts);
       setFeaturedIds(fetchedFeaturedIds);
+      setHighlights(fetchedHighlights);
     } catch (e) {
       Alert.alert('Could not load Archive', errorMessage(e));
     } finally {
@@ -132,6 +144,46 @@ export default function ArchiveScreen() {
     ]);
   };
 
+  const handleRestoreHighlight = async (clip: HighlightClip) => {
+    const prev = highlights;
+    setHighlights((h) => h.filter((x) => x.id !== clip.id));
+    try {
+      await unarchiveHighlightClip(clip.id);
+    } catch (e) {
+      setHighlights(prev);
+      Alert.alert('Could not restore clip', errorMessage(e));
+    }
+  };
+
+  const handleDeleteHighlightForever = (clip: HighlightClip) => {
+    Alert.alert('Delete this clip forever?', "This can't be undone.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete forever',
+        style: 'destructive',
+        onPress: async () => {
+          const prev = highlights;
+          setHighlights((h) => h.filter((x) => x.id !== clip.id));
+          try {
+            await deleteHighlightClip(clip.id);
+          } catch (e) {
+            setHighlights(prev);
+            Alert.alert('Could not delete clip', errorMessage(e));
+          }
+        },
+      },
+    ]);
+  };
+
+  const handlePressHighlight = (clip: HighlightClip) => {
+    Alert.alert(clip.mode === 'roast' ? 'Roast options' : 'Critique options', undefined, [
+      { text: 'View', onPress: () => router.push(`/highlight/${clip.id}`) },
+      { text: 'Restore (unarchive)', onPress: () => handleRestoreHighlight(clip) },
+      { text: 'Delete forever', style: 'destructive', onPress: () => handleDeleteHighlightForever(clip) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
       <View style={styles.header}>
@@ -142,19 +194,68 @@ export default function ArchiveScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <Text style={styles.subtitle}>
-        Posts quietly move here after {ARCHIVE_WINDOW_DAYS} days, or whenever you delete one from Feed. Private to
-        you — never public. Tap a post for options.
-      </Text>
+      <View style={styles.tabRow}>
+        <AnimatedPressable style={[styles.tabButton, tab === 'posts' && styles.tabButtonActive]} onPress={() => setTab('posts')}>
+          <Text style={[styles.tabButtonText, tab === 'posts' && styles.tabButtonTextActive]}>Posts</Text>
+        </AnimatedPressable>
+        <AnimatedPressable
+          style={[styles.tabButton, tab === 'highlights' && styles.tabButtonActive]}
+          onPress={() => setTab('highlights')}>
+          <Text style={[styles.tabButtonText, tab === 'highlights' && styles.tabButtonTextActive]}>Highlights</Text>
+        </AnimatedPressable>
+      </View>
 
-      {loading ? (
-        <ActivityIndicator color={colors.text} style={styles.spinner} />
-      ) : posts.length === 0 ? (
-        <Text style={styles.empty}>Nothing archived yet.</Text>
+      {tab === 'posts' ? (
+        <>
+          <Text style={styles.subtitle}>
+            Posts quietly move here after {ARCHIVE_WINDOW_DAYS} days, or whenever you delete one from Feed. Private
+            to you — never public. Tap a post for options.
+          </Text>
+
+          {loading ? (
+            <ActivityIndicator color={colors.text} style={styles.spinner} />
+          ) : posts.length === 0 ? (
+            <Text style={styles.empty}>Nothing archived yet.</Text>
+          ) : (
+            <ScrollView contentContainerStyle={styles.grid}>
+              <PostThumbnailGrid posts={posts} colors={colors} onPressItem={handlePressPost} />
+            </ScrollView>
+          )}
+        </>
       ) : (
-        <ScrollView contentContainerStyle={styles.grid}>
-          <PostThumbnailGrid posts={posts} colors={colors} onPressItem={handlePressPost} />
-        </ScrollView>
+        <>
+          <Text style={styles.subtitle}>
+            Roasts and Critiques you've archived. Private to you — never public. Tap one for options.
+          </Text>
+
+          {loading ? (
+            <ActivityIndicator color={colors.text} style={styles.spinner} />
+          ) : highlights.length === 0 ? (
+            <Text style={styles.empty}>No archived highlights yet.</Text>
+          ) : (
+            <ScrollView contentContainerStyle={styles.highlightList}>
+              {highlights.map((clip) => (
+                <AnimatedPressable
+                  key={clip.id}
+                  style={styles.highlightCard}
+                  onPress={() => handlePressHighlight(clip)}>
+                  <View style={styles.highlightIcon}>
+                    <Trophy size={16} color={colors.coral} strokeWidth={2} />
+                  </View>
+                  <View style={styles.highlightInfo}>
+                    <Text style={styles.highlightTitle}>
+                      {clip.mode === 'roast' ? 'Roast' : 'Critique'}
+                      {clip.sport ? ` · ${clip.sport}` : ''}
+                    </Text>
+                    <Text style={styles.highlightSubtitle} numberOfLines={1}>
+                      {clip.overallText ?? 'Archived clip'}
+                    </Text>
+                  </View>
+                </AnimatedPressable>
+              ))}
+            </ScrollView>
+          )}
+        </>
       )}
     </SafeAreaView>
   );
@@ -173,6 +274,23 @@ function makeStyles(colors: ThemeColors) {
       borderBottomColor: colors.border,
     },
     headerTitle: { fontSize: 16, fontWeight: WEIGHT.bold, color: colors.text },
+    tabRow: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 20,
+      paddingTop: 14,
+    },
+    tabButton: {
+      flex: 1,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.pill,
+      paddingVertical: 8,
+    },
+    tabButtonActive: { backgroundColor: colors.coral, borderColor: colors.coral },
+    tabButtonText: { fontSize: 12, fontWeight: WEIGHT.semibold, color: colors.text },
+    tabButtonTextActive: { color: '#FFFFFF' },
     subtitle: {
       fontSize: 12,
       color: colors.textSecondary,
@@ -182,6 +300,27 @@ function makeStyles(colors: ThemeColors) {
     },
     spinner: { marginTop: 30 },
     grid: { padding: 16, flexGrow: 1 },
+    highlightList: { padding: 16, gap: 10, flexGrow: 1 },
+    highlightCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.md,
+      padding: 12,
+    },
+    highlightIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: RADII.pill,
+      backgroundColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    highlightInfo: { flex: 1, gap: 2 },
+    highlightTitle: { fontSize: 13, fontWeight: WEIGHT.semibold, color: colors.text },
+    highlightSubtitle: { fontSize: 12, color: colors.textSecondary },
     empty: { marginTop: 40, textAlign: 'center', fontSize: 14, color: colors.textSecondary, paddingHorizontal: 24 },
   });
 }

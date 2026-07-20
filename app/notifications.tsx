@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Flame, Heart, MessageCircle, UserPlus } from 'lucide-react-native';
+import { CalendarX, CheckCircle2, ChevronLeft, Flame, Heart, MessageCircle, UserPlus, XCircle } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import {
   fetchNotifications,
+  isOpenGameNotification,
   markAllNotificationsRead,
   markNotificationRead,
   type NotificationItem,
@@ -38,6 +39,12 @@ function messageFor(item: NotificationItem): string {
       return 'liked your comment';
     case 'comment_reply':
       return 'replied to your comment';
+    case 'open_game_cancelled':
+      return 'cancelled the game you joined';
+    case 'open_game_request_approved':
+      return 'approved your request to join their game';
+    case 'open_game_request_declined':
+      return 'declined your request to join their game';
     default:
       return 'commented on your post';
   }
@@ -98,6 +105,10 @@ export default function NotificationsScreen() {
       } catch {
         // Non-critical — worst case it just shows unread again next load.
       }
+    }
+    if (isOpenGameNotification(item.type)) {
+      if (item.relatedPostId) router.push(`/open-game/${item.relatedPostId}`);
+      return;
     }
     if (item.actorId) {
       router.push(`/user/${item.actorId}`);
@@ -162,6 +173,12 @@ export default function NotificationsScreen() {
                     <Heart size={14} color={colors.coral} strokeWidth={2} fill={colors.coral} />
                   ) : item.type === 'follow' ? (
                     <UserPlus size={14} color={colors.blue} strokeWidth={2} />
+                  ) : item.type === 'open_game_cancelled' ? (
+                    <CalendarX size={14} color={colors.coral} strokeWidth={2} />
+                  ) : item.type === 'open_game_request_approved' ? (
+                    <CheckCircle2 size={14} color={colors.blue} strokeWidth={2} />
+                  ) : item.type === 'open_game_request_declined' ? (
+                    <XCircle size={14} color={colors.textSecondary} strokeWidth={2} />
                   ) : (
                     <MessageCircle size={14} color={colors.blue} strokeWidth={2} />
                   )}

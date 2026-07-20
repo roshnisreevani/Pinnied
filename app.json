@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "the-rec",
+    "name": "Pinnied",
     "slug": "the-rec",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,15 +9,19 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.group4.pinnied",
       "supportsTablet": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "The Rec uses your photo library so you can set a profile photo and pick your Pick Your 3 pictures.",
-        "NSCameraUsageDescription": "The Rec uses your camera so you can take a new profile photo directly and capture photos or videos for posts.",
-        "NSMicrophoneUsageDescription": "The Rec uses the microphone when you record a video for a post.",
-        "NSPhotoLibraryAddUsageDescription": "The Rec can save your share card and QR code to your photos when you tap Save."
+        "NSPhotoLibraryUsageDescription": "Pinnied uses your photo library so you can set a profile photo, pick your Pick Your 3 pictures, and share photos in Banter chats.",
+        "NSCameraUsageDescription": "Pinnied uses your camera so you can take a new profile photo directly and capture photos or videos for posts and chats.",
+        "NSMicrophoneUsageDescription": "Pinnied uses the microphone when you record a video for a post or send a voice note in Banter.",
+        "NSPhotoLibraryAddUsageDescription": "Pinnied can save your share card and QR code to your photos when you tap Save.",
+        "NSLocationWhenInUseUsageDescription": "Pinnied uses your location to show Open Games near you and to set the location when you post one.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.group4.pinnied",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -25,7 +29,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "web": {
       "output": "static",
@@ -47,7 +52,13 @@
       ],
       "expo-audio",
       "expo-video",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Pinnied uses your location to show Open Games near you and to set the location when you post one."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

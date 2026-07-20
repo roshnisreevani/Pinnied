@@ -1,6 +1,14 @@
 import { supabase } from '@/lib/supabase';
 
-export type NotificationType = 'reaction' | 'comment' | 'follow' | 'comment_like' | 'comment_reply';
+export type NotificationType =
+  | 'reaction'
+  | 'comment'
+  | 'follow'
+  | 'comment_like'
+  | 'comment_reply'
+  | 'open_game_cancelled'
+  | 'open_game_request_approved'
+  | 'open_game_request_declined';
 
 export type NotificationItem = {
   id: string;
@@ -22,6 +30,11 @@ type NotificationRow = {
   created_at: string;
   actor: { name: string | null; avatar_url: string | null } | null;
 };
+
+/** True for notification types whose related_content_id points at an open game, not a post. */
+export function isOpenGameNotification(type: NotificationType): boolean {
+  return type === 'open_game_cancelled' || type === 'open_game_request_approved' || type === 'open_game_request_declined';
+}
 
 /**
  * Recent activity on your stuff — reactions and comments on your posts,

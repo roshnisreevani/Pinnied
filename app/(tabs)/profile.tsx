@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CrestAvatar } from '@/components/profile/crest-avatar';
 import { GameDayBadge } from '@/components/profile/gameday-badge';
+import { HighlightsSection } from '@/components/profile/highlights-section';
 import { PhotoViewer } from '@/components/profile/photo-viewer';
 import { PickThreeField } from '@/components/profile/pick-three-field';
 import { PinnieIcon } from '@/components/profile/pinnie-icon';
@@ -267,6 +268,8 @@ export default function ProfileScreen() {
             ) : null}
           </Section>
         ) : null}
+
+        {userId ? <HighlightsSection userId={userId} /> : null}
 
         {/* Pick Your 3 / Featured — a tab switcher instead of two stacked
             grids, so both are always reachable (Featured no longer hides

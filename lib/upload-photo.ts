@@ -40,3 +40,29 @@ export function uploadAvatarPhoto(userId: string, localUri: string): Promise<str
 export function uploadMessagePhoto(userId: string, localUri: string): Promise<string> {
   return uploadPhoto('message-media', userId, localUri);
 }
+
+export function uploadGamePhoto(userId: string, localUri: string): Promise<string> {
+  return uploadPhoto('game-photos', userId, localUri);
+}
+
+/** Uploads a locally-picked short video clip (see uploadPhoto above for the general pattern). */
+export async function uploadHighlightClipVideo(userId: string, localUri: string): Promise<string> {
+  const file = new File(localUri);
+  const bytes = await file.bytes();
+
+  const extMatch = localUri.match(/\.([a-zA-Z0-9]+)$/);
+  const ext = (extMatch?.[1] ?? 'mov').toLowerCase();
+  const contentType = `video/${ext === 'mov' ? 'quicktime' : ext}`;
+
+  const path = `${userId}/${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
+
+  const { error } = await supabase.storage.from('highlight-clips').upload(path, bytes, {
+    contentType,
+    upsert: true,
+  });
+
+  if (error) throw error;
+
+  const { data } = supabase.storage.from('highlight-clips').getPublicUrl(path);
+  return data.publicUrl;
+}

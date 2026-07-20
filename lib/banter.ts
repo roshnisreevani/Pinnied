@@ -139,7 +139,7 @@ async function resolvePinnedMessage(pinnedMessageId: string | null, pinnedById: 
   const [{ data: msgRow, error: msgError }, { data: pinnerRow, error: pinnerError }] = await Promise.all([
     supabase
       .from('messages')
-      .select('id, content, profiles!messages_sender_id_fkey(name)')
+      .select('id, content, deleted_at, profiles!messages_sender_id_fkey(name)')
       .eq('id', pinnedMessageId)
       .maybeSingle(),
     pinnedById ? supabase.from('profiles').select('name').eq('id', pinnedById).maybeSingle() : Promise.resolve({ data: null, error: null }),
@@ -148,10 +148,18 @@ async function resolvePinnedMessage(pinnedMessageId: string | null, pinnedById: 
   if (pinnerError) throw pinnerError;
   if (!msgRow) return null;
 
-  const msg = msgRow as unknown as { id: string; content: string; profiles: { name: string | null } | null };
+  const msg = msgRow as unknown as {
+    id: string;
+    content: string;
+    deleted_at: string | null;
+    profiles: { name: string | null } | null;
+  };
   return {
     id: msg.id,
-    content: msg.content,
+    // A soft-deleted message stays in the DB (moderation), but "deleted for
+    // everyone" should mean everyone — including anyone still seeing it via
+    // the pinned banner, not just the live message list.
+    content: msg.deleted_at ? 'Message deleted' : msg.content,
     senderName: msg.profiles?.name?.trim() || 'Nameless legend',
     pinnedByName: (pinnerRow as unknown as { name: string | null } | null)?.name?.trim() || 'Someone',
   };

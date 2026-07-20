@@ -186,6 +186,12 @@ export default function SettingsScreen() {
               colors={colors}
               styles={styles}
             />
+            <LinkRow
+              label="Verify Account"
+              onPress={() => router.push('/verify-account')}
+              colors={colors}
+              styles={styles}
+            />
           </Section>
 
           <Section title="About" colors={colors} styles={styles}>

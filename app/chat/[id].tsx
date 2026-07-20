@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Image as ExpoImage } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, ImagePlus, Mic, MoreHorizontal, Pause, Pin, Play, Send, Square } from 'lucide-react-native';
+import { ChevronLeft, ImagePlus, Mic, MoreHorizontal, Pause, Pin, Play, Send } from 'lucide-react-native';
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -160,6 +160,22 @@ export default function ChatScreen() {
     }, [load])
   );
 
+  // If the screen unmounts mid-recording (e.g. the user backs out while
+  // still holding the mic), stop the recorder and release the mic session
+  // instead of leaving it running with a stray auto-stop timer pointed at
+  // an unmounted screen.
+  useEffect(() => {
+    return () => {
+      if (autoStopTimer.current) clearTimeout(autoStopTimer.current);
+      if (recordingActiveRef.current) {
+        recordingActiveRef.current = false;
+        recorder.stop().catch(() => {});
+        setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSend = async () => {
     const content = draft.trim();
     if (!content || !userId || !id || sending) return;
@@ -230,6 +246,10 @@ export default function ChatScreen() {
     const elapsedSec = (Date.now() - recordStartRef.current) / 1000;
     try {
       await recorder.stop();
+      // Otherwise the audio session stays configured for recording for the
+      // rest of the screen's life — on iOS that can keep the mic-in-use
+      // indicator lit and affect how other audio in the app behaves.
+      setAudioModeAsync({ allowsRecording: false }).catch(() => {});
       const localUri = recorder.uri;
       // Treat anything under half a second as an accidental tap, not a note.
       if (!localUri || elapsedSec < 0.5 || !userId || !id) return;
