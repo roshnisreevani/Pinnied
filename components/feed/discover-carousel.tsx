@@ -16,49 +16,39 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { CARD_HEIGHT, CARD_WIDTH } from '@/components/feed/card-layout';
+import { GameSwipeCard, PersonSwipeCard, SportsSwipeCard } from '@/components/feed/discover-extras';
 import { FeedEndCard } from '@/components/feed/feed-end-card';
-import { errorMessage } from '@/lib/error-message';
 import { PositionDots } from '@/components/feed/position-dots';
 import { SessionPostCard } from '@/components/feed/session-post-card';
+import { errorMessage } from '@/lib/error-message';
 import { ON_ACCENT, ON_DARK_SURFACE, RADII, WEIGHT } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
+import type { SuggestedPerson } from '@/lib/follows';
 import type { ReportReason } from '@/lib/moderation';
+import type { OpenGame } from '@/lib/open-games';
 import type { Post } from '@/lib/posts';
 import type { ReactionType } from '@/lib/reactions';
 import { sendPostToPosterDm } from '@/lib/send-to-banter';
+import type { SportsContentCard } from '@/lib/sports-content';
 
-const MOTTOS = [
-  "Your friends were out here. Where were you? 👀",
-  "Everyone showed up. The Scoreboard's waiting on you. ⏳",
-  "This all happened without you. Just saying. 🤷",
-  "They played, they posted. Your move. 🏃",
-  "Your crew's got receipts. Do you? 📸",
-  "The squad's been cooking. You still ordering takeout? 👀",
-  "All this happened while you were thinking about it. 😬",
-  "Don't let your friends have all the highlights. 🎬",
-  "Everyone's got a story. What's yours? 🤔",
-  "The bench misses you less than the court does. 🪑",
-  "Your friends didn't sit this one out. Will you? 😤",
-  "This is what you missed. Don't miss the next one. 🔔",
-  "The group chat already saw this. Now show them yours. 💬",
-  "They showed up. They balled. They posted. Your turn. 💪",
-];
-
-function getDailyMotto(): string {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const dayOfYear = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  return MOTTOS[dayOfYear % MOTTOS.length];
-}
+/**
+ * One swipeable item in Discover's deck — a real post, an open game, a
+ * suggested person, or a casual-sports card, all sharing the same
+ * swipe-right-to-advance interaction as Following's post carousel. This is
+ * Discover's actual point: it isn't a second copy of Following, and it isn't
+ * dead until enough people post — games/people/sports content are real
+ * inventory mixed in alongside a light sprinkle of posts.
+ */
+export type DiscoverItem =
+  | { type: 'post'; key: string; post: Post }
+  | { type: 'game'; key: string; game: OpenGame }
+  | { type: 'person'; key: string; person: SuggestedPerson }
+  | { type: 'sports'; key: string; card: SportsContentCard };
 
 const H_SWIPE_THRESHOLD = 70;
 const V_SWIPE_THRESHOLD = 70;
-const SLIDE_OUT_MS = 100; // + settle below ≈ under 250ms total
+const SLIDE_OUT_MS = 100;
 
-// A single decisive motion, not a bouncy one: overshootClamping stops the
-// spring dead the instant it reaches its target instead of letting it swing
-// past and correct itself, tuned close to critical damping so there's
-// essentially nothing left to clamp in the first place.
 const DECISIVE_SPRING = {
   damping: 26,
   stiffness: 420,
@@ -67,35 +57,28 @@ const DECISIVE_SPRING = {
 } as const;
 
 type Props = {
-  posts: Post[]; // already ordered most-recent-first
+  items: DiscoverItem[];
   currentUserId: string;
-  // The Feed screen's wrapping scrollable (RNGH ScrollView). The card pan
-  // blocks it while a swipe is being judged so upward swipes reach the
-  // banter gesture instead of being eaten by page scrolling.
   scrollRef?: React.RefObject<GHScrollView | null>;
   isPostOfWeek: (post: Post) => boolean;
   streak: number;
   onLeavePost: (postId: string, hasFireReaction: boolean) => void;
   onToggleReaction: (postId: string, type: ReactionType) => void;
   onOpenComments: (postId: string) => void;
-  onDelete: (post: Post) => void;
-  onReport: (post: Post, reason: ReportReason) => void;
-  onBlock: (post: Post) => void;
-  onReshare: (post: Post) => void;
+  onDeletePost: (post: Post) => void;
+  onReportPost: (post: Post, reason: ReportReason) => void;
+  onBlockPost: (post: Post) => void;
+  onResharePost: (post: Post) => void;
+  onOpenGame: (game: OpenGame) => void;
+  onJoinGame: (game: OpenGame) => void;
+  joiningGameId: string | null;
+  myGoingGameIds: Set<string>;
+  onFollowPerson: (personId: string) => void;
+  followedPersonIds: Set<string>;
 };
 
-/**
- * The single continuous swipeable sequence for the whole Feed — every post
- * from every group, in one run, ordered most-recent-first. This replaces
- * the earlier per-group/per-day "session" carousel (components/feed/
- * session-carousel.tsx, left in place but no longer used by feed.tsx) —
- * that grouping/clustering made Feed feel divided rather than cohesive, so
- * there's no more resetting or breaking between groups here. Each card
- * still shows which group a post is from (see SessionPostCard's author
- * line), it's just no longer used to segment the sequence itself.
- */
-export function FeedCarousel({
-  posts,
+export function DiscoverCarousel({
+  items,
   currentUserId,
   scrollRef,
   isPostOfWeek,
@@ -103,10 +86,16 @@ export function FeedCarousel({
   onLeavePost,
   onToggleReaction,
   onOpenComments,
-  onDelete,
-  onReport,
-  onBlock,
-  onReshare,
+  onDeletePost,
+  onReportPost,
+  onBlockPost,
+  onResharePost,
+  onOpenGame,
+  onJoinGame,
+  joiningGameId,
+  myGoingGameIds,
+  onFollowPerson,
+  followedPersonIds,
 }: Props) {
   const router = useRouter();
   const colors = useThemeColors();
@@ -121,32 +110,24 @@ export function FeedCarousel({
   const arrowScale = useSharedValue(0.6);
   const banterOpacity = useSharedValue(0);
 
-  const isEndCard = activeIndex === posts.length;
-  const activePost = isEndCard ? null : posts[activeIndex];
+  const isEndCard = activeIndex === items.length;
+  const activeItem = isEndCard ? null : items[activeIndex];
 
-  // Preload the adjacent posts' photos so they're already decoded and in
-  // memory/disk cache by the time a swipe brings them into view — without
-  // this, swapping `activePost` to the next/prev post makes expo-image
-  // start a fresh fetch+decode right at swipe time, which is exactly the
-  // "beat of lag" this is fixing. Only ever the immediate neighbors, per
-  // spec — not the whole feed.
+  // Preload the neighboring posts' photos, same idea as Following's
+  // carousel — only ever the immediate post neighbors, other card types
+  // have no media to prefetch.
   useEffect(() => {
-    const neighborUrls = [posts[activeIndex + 1]?.mediaUrl, posts[activeIndex - 1]?.mediaUrl].filter(
-      (uri): uri is string => !!uri
-    );
+    const neighborUrls = [items[activeIndex + 1], items[activeIndex - 1]]
+      .map((item) => (item?.type === 'post' ? item.post.mediaUrl : null))
+      .filter((uri): uri is string => !!uri);
     if (neighborUrls.length > 0) {
-      ExpoImage.prefetch(neighborUrls).catch(() => {
-        // Best-effort — a failed prefetch just means that neighbor loads
-        // normally (with its usual latency) when swiped to, not a crash.
-      });
+      ExpoImage.prefetch(neighborUrls).catch(() => {});
     }
-  }, [activeIndex, posts]);
+  }, [activeIndex, items]);
 
   const finishTransition = (direction: 'left' | 'right') => {
     const newIndex = direction === 'left' ? activeIndex + 1 : activeIndex - 1;
     setActiveIndex(newIndex);
-    // Snap (invisibly, since opacity is already low) to the opposite edge,
-    // then settle the newly-active card in from there in one clean motion.
     translateX.value = direction === 'left' ? CARD_WIDTH : -CARD_WIDTH;
     translateX.value = withSpring(0, DECISIVE_SPRING);
     cardOpacity.value = withTiming(1, { duration: 110 });
@@ -154,11 +135,9 @@ export function FeedCarousel({
 
   const triggerTransition = (direction: 'left' | 'right') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const leaving = posts[activeIndex];
-    if (leaving) onLeavePost(leaving.id, leaving.myReactions.includes('🔥'));
+    const leaving = items[activeIndex];
+    if (leaving?.type === 'post') onLeavePost(leaving.post.id, leaving.post.myReactions.includes('🔥'));
 
-    // Quick, single pop-and-fade via withTiming only — no spring-back, so
-    // it can't read as part of any card-transition bounce.
     setArrowDirection(direction);
     arrowOpacity.value = withSequence(withTiming(1, { duration: 70 }), withDelay(50, withTiming(0, { duration: 80 })));
     arrowScale.value = withSequence(
@@ -182,41 +161,33 @@ export function FeedCarousel({
     }, 1300);
   };
 
+  // Swipe-up-to-banter only makes sense for an actual post from someone
+  // else — every other card type in this deck just ignores the vertical
+  // gesture.
   const handleSwipeUpToBanter = async () => {
-    if (!activePost) return;
-    if (activePost.authorId === currentUserId) {
+    if (activeItem?.type !== 'post') return;
+    const post = activeItem.post;
+    if (post.authorId === currentUserId) {
       showBanterBanner("That's your own post — no need to banter yourself");
       return;
     }
     setBanterMessage('Opening Banter…');
     banterOpacity.value = withTiming(1, { duration: 120 });
     try {
-      const conversationId = await sendPostToPosterDm(activePost, currentUserId);
+      const conversationId = await sendPostToPosterDm(post, currentUserId);
       banterOpacity.value = withTiming(0, { duration: 150 });
       setBanterMessage(null);
       router.push(`/chat/${conversationId}`);
     } catch (e) {
-      // getOrCreateDm's errors are user-readable (not connected, blocked…).
-      // Log the full object too — Postgres often puts the actionable fix in
-      // `hint`, which the banner's message alone won't show.
-      console.warn('[feed-carousel] swipe-up to banter failed:', e);
+      console.warn('[discover-carousel] swipe-up to banter failed:', e);
       showBanterBanner(errorMessage(e, "Couldn't open Banter."));
     }
   };
 
-  const canGoNext = activeIndex < posts.length; // posts.length is the end card slot
+  const canGoNext = activeIndex < items.length;
   const canGoPrev = activeIndex > 0;
 
   let pan = Gesture.Pan()
-    // The 12px activation offsets keep plain taps falling through to the
-    // reaction pills / comment button / menu button inside SessionPostCard
-    // (RNGH's default activation distance is tiny). They're directional —
-    // not minDistance — because the vertical side must be one-way: an
-    // upward drag past 12px is the banter swipe and activates the pan, but
-    // a downward drag is page scrolling and must FAIL the pan (failOffsetY)
-    // so the Feed ScrollView underneath can take over. With a plain
-    // minDistance the scroll view's native recognizer won vertical drags
-    // outright and swipe-up never fired.
     .activeOffsetX([-12, 12])
     .activeOffsetY(-12)
     .failOffsetY(16)
@@ -248,19 +219,11 @@ export function FeedCarousel({
         return;
       }
 
-      // Didn't clear either threshold — snap back to center, same clean
-      // no-overshoot motion as everything else in this file.
       translateX.value = withSpring(0, DECISIVE_SPRING);
       translateY.value = withSpring(0, DECISIVE_SPRING);
     });
 
   if (scrollRef) {
-    // Make the Feed ScrollView wait until this pan fails before scrolling.
-    // Failure is quick (16px downward, or finger-up without activation), so
-    // normal scrolling and pull-to-refresh keep working off-card and on
-    // downward drags — but upward drags on the card belong to banter.
-    // Cast: RNGH accepts component refs here at runtime, but its typings
-    // don't allow the `| null` that React 19's useRef(null) produces.
     pan = pan.blocksExternalGesture(scrollRef as unknown as React.RefObject<React.ComponentType>);
   }
 
@@ -278,48 +241,68 @@ export function FeedCarousel({
     opacity: banterOpacity.value,
   }));
 
-  const nextPost = posts[activeIndex + 1] ?? null;
+  const nextItem = items[activeIndex + 1] ?? null;
+  const nextImageUrl = nextItem?.type === 'post' ? nextItem.post.mediaUrl : null;
 
-  const dailyMotto = getDailyMotto();
+  const renderCard = () => {
+    if (isEndCard || !activeItem) return <FeedEndCard />;
+
+    switch (activeItem.type) {
+      case 'post':
+        return (
+          <SessionPostCard
+            post={activeItem.post}
+            currentUserId={currentUserId}
+            isPostOfWeek={isPostOfWeek(activeItem.post)}
+            streak={streak}
+            onToggleReaction={(type) => onToggleReaction(activeItem.post.id, type)}
+            onOpenComments={() => onOpenComments(activeItem.post.id)}
+            onOpenPost={() => router.push(`/post/${activeItem.post.id}`)}
+            onDelete={() => onDeletePost(activeItem.post)}
+            onReport={(reason) => onReportPost(activeItem.post, reason)}
+            onBlock={() => onBlockPost(activeItem.post)}
+            onReshare={() => onResharePost(activeItem.post)}
+          />
+        );
+      case 'game':
+        return (
+          <GameSwipeCard
+            game={activeItem.game}
+            onPress={() => onOpenGame(activeItem.game)}
+            onJoin={() => onJoinGame(activeItem.game)}
+            joining={joiningGameId === activeItem.game.id}
+            alreadyGoing={myGoingGameIds.has(activeItem.game.id)}
+          />
+        );
+      case 'person':
+        return (
+          <PersonSwipeCard
+            person={activeItem.person}
+            onPress={() => router.push(`/user/${activeItem.person.id}`)}
+            onFollow={() => onFollowPerson(activeItem.person.id)}
+            following={followedPersonIds.has(activeItem.person.id)}
+          />
+        );
+      case 'sports':
+        return <SportsSwipeCard card={activeItem.card} />;
+    }
+  };
 
   return (
     <View style={styles.wrap}>
       <View style={styles.dotsWrap}>
-        <PositionDots count={posts.length} activeIndex={activeIndex} />
+        <PositionDots count={items.length} activeIndex={activeIndex} />
       </View>
 
       <View style={styles.stage}>
-        {nextPost ? (
+        {nextImageUrl ? (
           <View style={styles.peekWrap} pointerEvents="none">
-            <ExpoImage
-              source={{ uri: nextPost.mediaUrl }}
-              style={styles.peekImage}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-            />
+            <ExpoImage source={{ uri: nextImageUrl }} style={styles.peekImage} contentFit="cover" cachePolicy="memory-disk" />
           </View>
         ) : null}
 
         <GestureDetector gesture={pan}>
-          <Animated.View style={[styles.activeCardWrap, cardStyle]}>
-            {isEndCard || !activePost ? (
-              <FeedEndCard />
-            ) : (
-              <SessionPostCard
-                post={activePost}
-                currentUserId={currentUserId}
-                isPostOfWeek={isPostOfWeek(activePost)}
-                streak={streak}
-                onToggleReaction={(type) => onToggleReaction(activePost.id, type)}
-                onOpenComments={() => onOpenComments(activePost.id)}
-                onOpenPost={() => router.push(`/post/${activePost.id}`)}
-                onDelete={() => onDelete(activePost)}
-                onReport={(reason) => onReport(activePost, reason)}
-                onBlock={() => onBlock(activePost)}
-                onReshare={() => onReshare(activePost)}
-              />
-            )}
-          </Animated.View>
+          <Animated.View style={[styles.activeCardWrap, cardStyle]}>{renderCard()}</Animated.View>
         </GestureDetector>
 
         {arrowDirection ? (
@@ -334,10 +317,6 @@ export function FeedCarousel({
           </Animated.View>
         ) : null}
       </View>
-
-      {!isEndCard ? (
-        <Text style={[styles.motto, { color: colors.textSecondary }]}>{dailyMotto}</Text>
-      ) : null}
     </View>
   );
 }
@@ -345,14 +324,6 @@ export function FeedCarousel({
 const styles = StyleSheet.create({
   wrap: { marginTop: 14, alignItems: 'center' },
   dotsWrap: { marginBottom: 10 },
-  motto: {
-    marginTop: 12,
-    fontSize: 16,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    lineHeight: 22,
-  },
   stage: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,

@@ -1,12 +1,4 @@
-import {
-  Urbanist_400Regular,
-  Urbanist_500Medium,
-  Urbanist_600SemiBold,
-  Urbanist_700Bold,
-} from '@expo-google-fonts/urbanist';
-import { PermanentMarker_400Regular } from '@expo-google-fonts/permanent-marker';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -91,22 +83,9 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    Urbanist_400Regular,
-    Urbanist_500Medium,
-    Urbanist_600SemiBold,
-    Urbanist_700Bold,
-    PermanentMarker_400Regular,
-  });
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
-
+  // No custom font loading — the app deliberately sticks to the system font
+  // everywhere (see constants/style.ts) for one consistent look, so there's
+  // no async font-load gate needed here.
   return (
     // Required at the app root for react-native-gesture-handler's Pan
     // gestures to work correctly (Feed's new swipeable session cards use

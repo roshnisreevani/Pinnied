@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { FONTS, GOLD, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { GOLD, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import {

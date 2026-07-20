@@ -8,7 +8,9 @@ export type NotificationType =
   | 'comment_reply'
   | 'open_game_cancelled'
   | 'open_game_request_approved'
-  | 'open_game_request_declined';
+  | 'open_game_request_declined'
+  | 'highlight_ready'
+  | 'highlight_failed';
 
 export type NotificationItem = {
   id: string;
@@ -34,6 +36,16 @@ type NotificationRow = {
 /** True for notification types whose related_content_id points at an open game, not a post. */
 export function isOpenGameNotification(type: NotificationType): boolean {
   return type === 'open_game_cancelled' || type === 'open_game_request_approved' || type === 'open_game_request_declined';
+}
+
+/**
+ * True for notification types whose related_content_id points at a
+ * highlight clip, not a post — and which have no real "actor" (they're
+ * system-generated when analysis finishes, not caused by another person),
+ * so the UI shouldn't try to show an actor name/avatar for these.
+ */
+export function isHighlightNotification(type: NotificationType): boolean {
+  return type === 'highlight_ready' || type === 'highlight_failed';
 }
 
 /**

@@ -1,16 +1,26 @@
 import { useEvent } from 'expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { Archive, ChevronLeft, MessageCircleReply, Send, X } from 'lucide-react-native';
+import { Archive, ChevronLeft, Flame, MessageCircleReply, Send, Target, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { ON_ACCENT, RADII, SPACING, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { errorMessage } from '@/lib/error-message';
@@ -214,7 +224,8 @@ export default function HighlightDetailScreen() {
         </AnimatedPressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.videoWrap}>
           <VideoView player={player} style={styles.video} contentFit="cover" nativeControls />
           {status === 'loading' ? (
@@ -278,8 +289,22 @@ export default function HighlightDetailScreen() {
               {messages.map((m) =>
                 m.sender === 'ai' ? (
                   <SwipeableAiBubble key={m.id} onSwipeReply={() => setQuotedText(m.body)}>
-                    <View style={[styles.bubble, styles.bubbleAi]}>
-                      <Text style={styles.bubbleText}>{m.body}</Text>
+                    <View style={styles.bubbleAiRow}>
+                      <View style={[styles.aiAvatar, clip.mode === 'roast' ? styles.aiAvatarRoast : styles.aiAvatarCritique]}>
+                        {clip.mode === 'roast' ? (
+                          <Flame size={12} color={colors.coral} strokeWidth={2} />
+                        ) : (
+                          <Target size={12} color={colors.blue} strokeWidth={2} />
+                        )}
+                      </View>
+                      <View
+                        style={[
+                          styles.bubble,
+                          styles.bubbleAi,
+                          clip.mode === 'roast' ? styles.bubbleAiRoast : styles.bubbleAiCritique,
+                        ]}>
+                        <Text style={styles.bubbleText}>{m.body}</Text>
+                      </View>
                     </View>
                   </SwipeableAiBubble>
                 ) : (
@@ -342,6 +367,7 @@ export default function HighlightDetailScreen() {
           </>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -400,8 +426,8 @@ function makeStyles(colors: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    headerTitle: { fontSize: 16, fontWeight: WEIGHT.bold, color: colors.text },
-    content: { padding: 20, paddingBottom: 48, gap: 4 },
+    headerTitle: { fontSize: TYPE.subtitle, fontWeight: WEIGHT.bold, color: colors.text },
+    content: { padding: SPACING.xl, paddingBottom: 48, gap: 4 },
     videoWrap: { width: '100%', height: 300, borderRadius: RADII.lg, overflow: 'hidden', backgroundColor: '#000' },
     video: { width: '100%', height: '100%' },
     videoLoading: {
@@ -410,9 +436,9 @@ function makeStyles(colors: ThemeColors) {
       justifyContent: 'center',
       backgroundColor: 'rgba(0,0,0,0.35)',
     },
-    pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, justifyContent: 'center' },
-    pendingText: { fontSize: 13, color: colors.textSecondary },
-    failedText: { fontSize: 13, color: colors.textSecondary, marginTop: 16, textAlign: 'center' },
+    pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: SPACING.lg, justifyContent: 'center' },
+    pendingText: { fontSize: TYPE.label, color: colors.textSecondary },
+    failedText: { fontSize: TYPE.label, color: colors.textSecondary, marginTop: SPACING.lg, textAlign: 'center' },
     stuckWrap: { alignItems: 'center', gap: 10, width: '100%' },
     retryButton: {
       backgroundColor: colors.coral,
@@ -422,9 +448,9 @@ function makeStyles(colors: ThemeColors) {
       minWidth: 90,
       alignItems: 'center',
     },
-    retryButtonText: { fontSize: 13, fontWeight: WEIGHT.semibold, color: ON_ACCENT },
-    overall: { fontSize: 15, fontWeight: WEIGHT.semibold, color: colors.text, marginTop: 16, lineHeight: 21 },
-    notesWrap: { marginTop: 14, gap: 6 },
+    retryButtonText: { fontSize: TYPE.label, fontWeight: WEIGHT.semibold, color: ON_ACCENT },
+    overall: { fontSize: TYPE.body, fontWeight: WEIGHT.semibold, color: colors.text, marginTop: SPACING.lg, lineHeight: 21 },
+    notesWrap: { marginTop: SPACING.md, gap: 6 },
     noteRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -435,9 +461,9 @@ function makeStyles(colors: ThemeColors) {
       padding: 10,
     },
     noteMain: { flex: 1, flexDirection: 'row', gap: 10 },
-    noteTime: { fontSize: 12, fontWeight: WEIGHT.bold, color: colors.coral, minWidth: 34 },
-    noteText: { fontSize: 13, color: colors.text, flex: 1 },
-    chatLabel: { fontSize: 11, color: colors.textSecondary, marginTop: 22, marginBottom: 8 },
+    noteTime: { fontSize: TYPE.caption, fontWeight: WEIGHT.bold, color: colors.coral, minWidth: 34 },
+    noteText: { fontSize: TYPE.label, color: colors.text, flex: 1 },
+    chatLabel: { fontSize: TYPE.caption, color: colors.textSecondary, marginTop: SPACING.xl, marginBottom: 8 },
     quoteChip: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -449,12 +475,26 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 7,
       marginTop: 8,
     },
-    quoteChipText: { flex: 1, fontSize: 11, color: colors.textSecondary },
+    quoteChipText: { flex: 1, fontSize: TYPE.caption, color: colors.textSecondary },
     chatWrap: { gap: 6 },
-    bubble: { maxWidth: '80%', borderRadius: RADII.md, paddingHorizontal: 10, paddingVertical: 7 },
+    // Bumped from RADII.md to RADII.lg — Banter's chat bubbles use lg, and
+    // this screen's bubbles looked visibly flatter/more generic sitting next
+    // to that "gold standard" pattern at the smaller radius.
+    bubble: { maxWidth: '80%', borderRadius: RADII.lg, paddingHorizontal: 12, paddingVertical: 8 },
     bubbleUser: { alignSelf: 'flex-end', backgroundColor: colors.coral },
-    bubbleAi: { alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.border },
-    bubbleText: { fontSize: 13, color: colors.text },
+    // AI bubble gets a small persona avatar + a tail-like corner pinch toward
+    // it, plus a mode tint (coral-ish for Roast, blue-ish for Critique) so
+    // the two personas read as distinct "someones" instead of one generic
+    // system voice — mirrors the flame/target icon language already used on
+    // the mode-select cards in create-highlight.tsx.
+    bubbleAiRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, alignSelf: 'flex-start', maxWidth: '85%' },
+    aiAvatar: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    aiAvatarRoast: { backgroundColor: colors.coral + '18' },
+    aiAvatarCritique: { backgroundColor: colors.blue + '18' },
+    bubbleAi: { borderTopLeftRadius: 2 },
+    bubbleAiRoast: { backgroundColor: colors.coral + '18' },
+    bubbleAiCritique: { backgroundColor: colors.blue + '18' },
+    bubbleText: { fontSize: TYPE.label, color: colors.text },
     bubbleTextUser: { color: ON_ACCENT },
     composer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
     composerInput: {
@@ -464,7 +504,7 @@ function makeStyles(colors: ThemeColors) {
       borderRadius: RADII.pill,
       paddingHorizontal: 14,
       paddingVertical: 9,
-      fontSize: 13,
+      fontSize: TYPE.label,
       color: colors.text,
     },
     sendButton: {
@@ -475,7 +515,7 @@ function makeStyles(colors: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    shareRow: { flexDirection: 'row', gap: 8, marginTop: 22 },
+    shareRow: { flexDirection: 'row', gap: 8, marginTop: SPACING.xl },
     shareButton: {
       flex: 1,
       borderWidth: 1,
@@ -485,7 +525,7 @@ function makeStyles(colors: ThemeColors) {
       alignItems: 'center',
     },
     shareButtonActive: { backgroundColor: colors.coral, borderColor: colors.coral },
-    shareButtonText: { fontSize: 11, fontWeight: WEIGHT.semibold, color: colors.text },
+    shareButtonText: { fontSize: TYPE.caption, fontWeight: WEIGHT.semibold, color: colors.text },
     shareButtonTextActive: { color: ON_ACCENT },
   });
 }

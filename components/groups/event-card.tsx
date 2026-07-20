@@ -356,7 +356,7 @@ function makeStyles(colors: ThemeColors) {
     moreBubble: { backgroundColor: colors.borderSoft },
     moreBubbleText: { fontSize: 10, fontWeight: WEIGHT.bold, color: colors.textSecondary },
     spots: { flexShrink: 1, fontSize: 11, fontWeight: WEIGHT.semibold, color: colors.textSecondary },
-    spotsFull: { color: colors.coral },
+    spotsFull: { color: colors.danger },
     modalBackdrop: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.5)',

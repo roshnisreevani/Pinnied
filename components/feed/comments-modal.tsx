@@ -4,7 +4,7 @@ import { Keyboard, Modal, Platform, StyleSheet, Text, View } from 'react-native'
 
 import { CommentsSection, type CommentApi } from '@/components/feed/comments-section';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { FONTS, type ThemeColors } from '@/constants/style';
+import { WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
 
 type Props = {
@@ -116,8 +116,8 @@ function makeStyles(colors: ThemeColors) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    headerTitle: { fontSize: 17, fontFamily: FONTS.displaySemibold, color: colors.text },
+    headerTitle: { fontSize: 17, fontWeight: WEIGHT.semibold, color: colors.text },
     doneWrap: { width: 48, alignItems: 'flex-end' },
-    closeText: { fontSize: 16, fontFamily: FONTS.displaySemibold, color: colors.coral },
+    closeText: { fontSize: 16, fontWeight: WEIGHT.semibold, color: colors.text },
   });
 }

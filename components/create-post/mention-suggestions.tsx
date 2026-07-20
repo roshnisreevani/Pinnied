@@ -1,7 +1,7 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
-import { FONTS, RADII, type ThemeColors } from '@/constants/style';
+import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
 import type { FollowUser } from '@/lib/follows';
 import { useMemo } from 'react';
@@ -52,6 +52,6 @@ function makeStyles(colors: ThemeColors) {
       borderBottomColor: colors.border,
     },
     avatar: { width: 32, height: 32, borderRadius: 16 },
-    name: { fontSize: 14, fontFamily: FONTS.displayMedium, color: colors.text, flex: 1 },
+    name: { fontSize: 14, fontWeight: WEIGHT.medium, color: colors.text, flex: 1 },
   });
 }

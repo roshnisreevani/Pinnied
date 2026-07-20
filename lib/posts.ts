@@ -4,7 +4,7 @@ import { withArchiveStatus } from '@/lib/archive';
 import { fetchFollowingIds } from '@/lib/follows';
 import { getMockGroup } from '@/lib/groups-mock';
 import { fetchBlockedUserIds } from '@/lib/moderation';
-import { POST_OF_WEEK_WINDOW_DAYS, REACTIONS, type ReactionType } from '@/lib/reactions';
+import { POST_OF_WEEK_WINDOW_DAYS, type ReactionType } from '@/lib/reactions';
 import { supabase } from '@/lib/supabase';
 
 export type FeedScope = 'following' | 'discover';
@@ -72,22 +72,11 @@ type PostRow = {
   comments: CommentCountRow[] | null;
 };
 
-function emptyReactionCounts(): Record<ReactionType, number> {
-  return REACTIONS.reduce(
-    (acc, r) => {
-      acc[r.type] = 0;
-      return acc;
-    },
-    {} as Record<ReactionType, number>
-  );
-}
-
 function rowToPost(row: PostRow, currentUserId: string | undefined): Post {
-  // Seed the 4 presets at 0 so they always render even with no reactions yet,
-  // then tally every reaction row by its actual type — including custom
-  // emoji picked via the long-press picker, which aren't presets and used to
-  // get silently dropped here.
-  const reactionCounts = emptyReactionCounts();
+  // Tally every reaction row by its actual type — word, bank emoji, or
+  // custom emoji from search all land here the same way. No preset seeding:
+  // a type only appears in reactionCounts once someone's actually used it.
+  const reactionCounts: Record<ReactionType, number> = {};
   const myReactions: ReactionType[] = [];
 
   for (const r of row.reactions ?? []) {
@@ -125,9 +114,9 @@ const POST_SELECT =
   '*, author:profiles!posts_author_id_fkey(name, avatar_url), reactions:post_reactions(type, user_id), comments:post_comments(count)';
 
 /**
- * Chronological feed, scoped to either "following" (posts from people you
- * follow, plus your own) or "discover" (everyone — the old unfiltered
- * behavior). Defaults to "following".
+ * Feed, scoped to either "following" (chronological — posts from people you
+ * follow, plus your own) or "discover" (everyone, ranked by 🔥 count instead
+ * of recency — see the heat-sort note below). Defaults to "following".
  *
  * "Groups the user is a member of" is currently every mock group (see
  * lib/groups-mock.ts) since real membership doesn't exist yet — once it
@@ -164,7 +153,12 @@ export async function fetchFeed(currentUserId: string | undefined, scope: FeedSc
   // author's posts have aged out.
   const active = withArchiveStatus(allPosts).filter((p) => !p.isArchived);
 
-  if (scope === 'discover') return active;
+  if (scope === 'discover') {
+    // Discover reads as "trending," not a second copy of Following — ranked
+    // by 🔥 count (the same signal HeatMeter renders) rather than
+    // chronological, so it doesn't just mirror whatever's newest.
+    return [...active].sort((a, b) => (b.reactionCounts['🔥'] ?? 0) - (a.reactionCounts['🔥'] ?? 0));
+  }
 
   const followingSet = new Set(followingIds);
   return active.filter((p) => p.authorId === currentUserId || followingSet.has(p.authorId));

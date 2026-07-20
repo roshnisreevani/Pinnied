@@ -1,17 +1,28 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { CalendarX, CheckCircle2, ChevronLeft, Flame, Heart, MessageCircle, UserPlus, XCircle } from 'lucide-react-native';
+import {
+  CalendarX,
+  CheckCircle2,
+  ChevronLeft,
+  Flame,
+  Heart,
+  MessageCircle,
+  UserPlus,
+  Video,
+  XCircle,
+} from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { RADII, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import {
   fetchNotifications,
+  isHighlightNotification,
   isOpenGameNotification,
   markAllNotificationsRead,
   markNotificationRead,
@@ -45,6 +56,10 @@ function messageFor(item: NotificationItem): string {
       return 'approved your request to join their game';
     case 'open_game_request_declined':
       return 'declined your request to join their game';
+    case 'highlight_ready':
+      return 'Your clip is ready — tap to see it.';
+    case 'highlight_failed':
+      return "Your clip couldn't be analyzed — tap to retry.";
     default:
       return 'commented on your post';
   }
@@ -110,6 +125,10 @@ export default function NotificationsScreen() {
       if (item.relatedPostId) router.push(`/open-game/${item.relatedPostId}`);
       return;
     }
+    if (isHighlightNotification(item.type)) {
+      if (item.relatedPostId) router.push(`/highlight/${item.relatedPostId}`);
+      return;
+    }
     if (item.actorId) {
       router.push(`/user/${item.actorId}`);
     }
@@ -149,14 +168,21 @@ export default function NotificationsScreen() {
                 key={item.id}
                 style={[styles.row, !item.read && styles.rowUnread]}
                 onPress={() => handlePressItem(item)}>
-                {item.actorAvatarUrl ? (
+                {isHighlightNotification(item.type) ? (
+                  <View style={[styles.avatarImage, styles.highlightIconWrap]}>
+                    <Video size={18} color={colors.coral} strokeWidth={2} />
+                  </View>
+                ) : item.actorAvatarUrl ? (
                   <Image source={{ uri: item.actorAvatarUrl }} style={styles.avatarImage} />
                 ) : (
                   <InitialsAvatar name={item.actorName} size={40} />
                 )}
                 <View style={styles.rowText}>
                   <Text style={styles.rowLine} numberOfLines={2}>
-                    <Text style={styles.rowName}>{item.actorName}</Text> {messageFor(item)}
+                    {isHighlightNotification(item.type) ? null : (
+                      <Text style={styles.rowName}>{item.actorName} </Text>
+                    )}
+                    {messageFor(item)}
                   </Text>
                   <Text style={styles.rowTime}>{timeAgo(item.createdAt)}</Text>
                 </View>
@@ -178,6 +204,10 @@ export default function NotificationsScreen() {
                   ) : item.type === 'open_game_request_approved' ? (
                     <CheckCircle2 size={14} color={colors.blue} strokeWidth={2} />
                   ) : item.type === 'open_game_request_declined' ? (
+                    <XCircle size={14} color={colors.textSecondary} strokeWidth={2} />
+                  ) : item.type === 'highlight_ready' ? (
+                    <CheckCircle2 size={14} color={colors.coral} strokeWidth={2} />
+                  ) : item.type === 'highlight_failed' ? (
                     <XCircle size={14} color={colors.textSecondary} strokeWidth={2} />
                   ) : (
                     <MessageCircle size={14} color={colors.blue} strokeWidth={2} />
@@ -206,8 +236,8 @@ function makeStyles(colors: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    headerTitle: { fontSize: 16, fontWeight: WEIGHT.bold, color: colors.text },
-    markAllText: { fontSize: 12, fontWeight: WEIGHT.semibold, color: colors.coral },
+    headerTitle: { fontSize: TYPE.subtitle, fontWeight: WEIGHT.bold, color: colors.text },
+    markAllText: { fontSize: TYPE.caption, fontWeight: WEIGHT.semibold, color: colors.coral },
     content: { padding: 20, paddingBottom: 60, gap: 2 },
     empty: {
       marginTop: 40,
@@ -228,10 +258,15 @@ function makeStyles(colors: ThemeColors) {
     },
     rowUnread: { backgroundColor: colors.borderSoft },
     avatarImage: { width: 40, height: 40, borderRadius: 20 },
+    highlightIconWrap: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.borderSoft,
+    },
     rowText: { flex: 1, gap: 2 },
-    rowLine: { fontSize: 13, color: colors.text, lineHeight: 18 },
+    rowLine: { fontSize: TYPE.label, color: colors.text, lineHeight: 18 },
     rowName: { fontWeight: WEIGHT.semibold },
-    rowTime: { fontSize: 11, color: colors.textSecondary },
+    rowTime: { fontSize: TYPE.caption, color: colors.textSecondary },
     typeIcon: {
       width: 26,
       height: 26,

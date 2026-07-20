@@ -2,12 +2,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Trophy } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PostThumbnailGrid } from '@/components/feed/post-thumbnail-grid';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { RADII, SPACING, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { ARCHIVE_WINDOW_DAYS } from '@/lib/archive';
@@ -49,9 +49,12 @@ export default function ArchiveScreen() {
   const [featuredIds, setFeaturedIds] = useState<Set<string>>(new Set());
   const [highlights, setHighlights] = useState<HighlightClip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(
+    async (isRefresh = false) => {
     if (!userId) return;
+    if (isRefresh) setRefreshing(true);
     try {
       const [fetchedPosts, fetchedFeaturedIds, fetchedHighlights] = await Promise.all([
         fetchArchivedPosts(userId),
@@ -65,8 +68,11 @@ export default function ArchiveScreen() {
       Alert.alert('Could not load Archive', errorMessage(e));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [userId]);
+    },
+    [userId]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -217,7 +223,11 @@ export default function ArchiveScreen() {
           ) : posts.length === 0 ? (
             <Text style={styles.empty}>Nothing archived yet.</Text>
           ) : (
-            <ScrollView contentContainerStyle={styles.grid}>
+            <ScrollView
+              contentContainerStyle={styles.grid}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.text} />
+              }>
               <PostThumbnailGrid posts={posts} colors={colors} onPressItem={handlePressPost} />
             </ScrollView>
           )}
@@ -233,7 +243,11 @@ export default function ArchiveScreen() {
           ) : highlights.length === 0 ? (
             <Text style={styles.empty}>No archived highlights yet.</Text>
           ) : (
-            <ScrollView contentContainerStyle={styles.highlightList}>
+            <ScrollView
+              contentContainerStyle={styles.highlightList}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.text} />
+              }>
               {highlights.map((clip) => (
                 <AnimatedPressable
                   key={clip.id}
@@ -273,12 +287,12 @@ function makeStyles(colors: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    headerTitle: { fontSize: 16, fontWeight: WEIGHT.bold, color: colors.text },
+    headerTitle: { fontSize: TYPE.subtitle, fontWeight: WEIGHT.bold, color: colors.text },
     tabRow: {
       flexDirection: 'row',
       gap: 8,
       paddingHorizontal: 20,
-      paddingTop: 14,
+      paddingTop: SPACING.md,
     },
     tabButton: {
       flex: 1,
@@ -289,13 +303,13 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 8,
     },
     tabButtonActive: { backgroundColor: colors.coral, borderColor: colors.coral },
-    tabButtonText: { fontSize: 12, fontWeight: WEIGHT.semibold, color: colors.text },
+    tabButtonText: { fontSize: TYPE.caption, fontWeight: WEIGHT.semibold, color: colors.text },
     tabButtonTextActive: { color: '#FFFFFF' },
     subtitle: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       color: colors.textSecondary,
       paddingHorizontal: 20,
-      paddingTop: 12,
+      paddingTop: SPACING.md,
       paddingBottom: 4,
     },
     spinner: { marginTop: 30 },
@@ -319,8 +333,8 @@ function makeStyles(colors: ThemeColors) {
       justifyContent: 'center',
     },
     highlightInfo: { flex: 1, gap: 2 },
-    highlightTitle: { fontSize: 13, fontWeight: WEIGHT.semibold, color: colors.text },
-    highlightSubtitle: { fontSize: 12, color: colors.textSecondary },
-    empty: { marginTop: 40, textAlign: 'center', fontSize: 14, color: colors.textSecondary, paddingHorizontal: 24 },
+    highlightTitle: { fontSize: TYPE.label, fontWeight: WEIGHT.semibold, color: colors.text },
+    highlightSubtitle: { fontSize: TYPE.caption, color: colors.textSecondary },
+    empty: { marginTop: 40, textAlign: 'center', fontSize: TYPE.body, color: colors.textSecondary, paddingHorizontal: 24 },
   });
 }

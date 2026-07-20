@@ -13,11 +13,12 @@ import Animated, {
 
 import { ContentMenu } from '@/components/moderation/content-menu';
 import { FlyingReaction } from '@/components/feed/flying-reaction';
+import { HeatMeter } from '@/components/feed/heat-meter';
 import { PostVideo } from '@/components/feed/post-video';
 import { ReactionBar } from '@/components/feed/reaction-bar';
 import { ShareSheet } from '@/components/feed/share-sheet';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
-import { GOLD, ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { GOLD, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
 import type { ReportReason } from '@/lib/moderation';
 import type { Post } from '@/lib/posts';
@@ -29,7 +30,6 @@ const DOUBLE_TAP_MS = 280;
 type Props = {
   post: Post;
   currentUserId: string;
-  isHot: boolean;
   isPostOfWeek: boolean;
   isNew?: boolean;
   onToggleReaction: (type: ReactionType) => void;
@@ -64,7 +64,6 @@ function sportLabel(sportTag: string | null): string {
 export function PostCard({
   post,
   currentUserId,
-  isHot,
   isPostOfWeek,
   isNew,
   onToggleReaction,
@@ -125,8 +124,8 @@ export function PostCard({
       }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setFlyKey((k) => k + 1);
-      if (!post.myReactions.includes('fire')) {
-        onToggleReaction('fire');
+      if (!post.myReactions.includes('🔥')) {
+        onToggleReaction('🔥');
       }
     } else if (onOpenPost) {
       singleTapTimer.current = setTimeout(() => {
@@ -169,10 +168,6 @@ export function PostCard({
           <View style={styles.crownBadge}>
             <Text style={styles.crownBadgeText}>👑 Post of the Week</Text>
           </View>
-        ) : isHot ? (
-          <View style={styles.hotBadge}>
-            <Text style={styles.hotBadgeText}>🔥 HOT</Text>
-          </View>
         ) : null}
 
         <Pressable style={styles.menuButton} onPress={() => setMenuOpen(true)} hitSlop={8}>
@@ -192,6 +187,8 @@ export function PostCard({
       </Pressable>
 
       {post.caption ? <Text style={styles.caption}>{post.caption}</Text> : null}
+
+      <HeatMeter fireCount={post.reactionCounts['🔥'] ?? 0} />
 
       <View style={styles.footer}>
         <ReactionBar
@@ -264,13 +261,6 @@ function makeStyles(colors: ThemeColors) {
     groupLine: { fontSize: 11, color: colors.textSecondary },
     locationLine: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     locationText: { fontSize: 11, color: colors.textSecondary },
-    hotBadge: {
-      backgroundColor: colors.coral,
-      borderRadius: RADII.pill,
-      paddingHorizontal: 9,
-      paddingVertical: 4,
-    },
-    hotBadgeText: { color: ON_ACCENT, fontSize: 10, fontWeight: WEIGHT.bold },
     crownBadge: {
       backgroundColor: GOLD,
       borderRadius: RADII.pill,

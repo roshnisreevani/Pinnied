@@ -1,11 +1,22 @@
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Flame, Target } from 'lucide-react-native';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { ChevronLeft, Flame, Pencil, Target, Video } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { ON_ACCENT, RADII, SPACING, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { errorMessage } from '@/lib/error-message';
@@ -18,6 +29,18 @@ const SELF_SKILL_LABELS: Record<SkillLevel, string> = {
   all: 'Somewhere in between',
   competitive: 'Competitive',
 };
+
+/**
+ * Shows the actual picked clip, paused on its first frame, as a real
+ * thumbnail instead of a generic "clip selected" text box — same
+ * expo-video player/VideoView pairing PostVideo uses for feed clips.
+ */
+function VideoThumb({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.pause();
+  });
+  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />;
+}
 
 export default function CreateHighlightScreen() {
   const { session } = useAuth();
@@ -69,11 +92,27 @@ export default function CreateHighlightScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.sectionTitle}>Your clip</Text>
-        <AnimatedPressable style={styles.videoPicker} onPress={handlePickVideo}>
-          <Text style={styles.videoPickerText}>{videoUri ? 'Clip selected — tap to change' : 'Record or choose a ~15s clip'}</Text>
-        </AnimatedPressable>
+        {videoUri ? (
+          <AnimatedPressable style={styles.videoThumb} onPress={handlePickVideo}>
+            <VideoThumb uri={videoUri} />
+            <View style={styles.videoThumbLabel}>
+              <Text style={styles.videoThumbLabelText}>Clip selected</Text>
+            </View>
+            <View style={styles.videoThumbEditBadge}>
+              <Pencil size={12} color="#FFFFFF" strokeWidth={2} />
+            </View>
+          </AnimatedPressable>
+        ) : (
+          <AnimatedPressable style={styles.videoPicker} onPress={handlePickVideo}>
+            <View style={styles.videoPickerIconWrap}>
+              <Video size={18} color={colors.coral} strokeWidth={2} />
+            </View>
+            <Text style={styles.videoPickerText}>Record or choose a ~15s clip</Text>
+          </AnimatedPressable>
+        )}
 
         <Text style={styles.sectionTitle}>Mode</Text>
         <View style={styles.modeRow}>
@@ -130,6 +169,7 @@ export default function CreateHighlightScreen() {
           )}
         </AnimatedPressable>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -146,9 +186,9 @@ function makeStyles(colors: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    headerTitle: { fontSize: 16, fontWeight: WEIGHT.bold, color: colors.text },
-    content: { padding: 20, paddingBottom: 60, gap: 8 },
-    sectionTitle: { fontSize: 13, fontWeight: WEIGHT.bold, color: colors.text, marginTop: 16 },
+    headerTitle: { fontSize: TYPE.subtitle, fontWeight: WEIGHT.bold, color: colors.text },
+    content: { padding: SPACING.xl, paddingBottom: 60, gap: 8 },
+    sectionTitle: { fontSize: TYPE.label, fontWeight: WEIGHT.bold, color: colors.text, marginTop: SPACING.lg },
     videoPicker: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -156,8 +196,44 @@ function makeStyles(colors: ThemeColors) {
       borderRadius: RADII.lg,
       padding: 20,
       alignItems: 'center',
+      gap: 8,
     },
-    videoPickerText: { fontSize: 13, color: colors.textSecondary, textAlign: 'center' },
+    videoPickerIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.coral + '18',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    videoPickerText: { fontSize: TYPE.label, color: colors.textSecondary, textAlign: 'center' },
+    videoThumb: {
+      height: 130,
+      borderRadius: RADII.lg,
+      overflow: 'hidden',
+      backgroundColor: '#000000',
+    },
+    videoThumbLabel: {
+      position: 'absolute',
+      top: 8,
+      left: 8,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      borderRadius: RADII.pill,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    videoThumbLabelText: { fontSize: TYPE.caption, color: '#FFFFFF', fontWeight: WEIGHT.semibold },
+    videoThumbEditBadge: {
+      position: 'absolute',
+      bottom: 8,
+      right: 8,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     modeRow: { flexDirection: 'row', gap: 8 },
     modeCard: {
       flex: 1,
@@ -168,9 +244,9 @@ function makeStyles(colors: ThemeColors) {
       gap: 3,
     },
     modeCardSelected: { borderColor: colors.text, borderWidth: 1.5 },
-    modeLabel: { fontSize: 14, fontWeight: WEIGHT.semibold, color: colors.text },
+    modeLabel: { fontSize: TYPE.body, fontWeight: WEIGHT.semibold, color: colors.text },
     modeLabelSelected: { color: colors.text },
-    modeHint: { fontSize: 11, color: colors.textSecondary },
+    modeHint: { fontSize: TYPE.caption, color: colors.textSecondary },
     pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     pill: {
       borderWidth: 1,
@@ -180,7 +256,7 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 9,
     },
     pillSelected: { backgroundColor: colors.coral, borderColor: colors.coral },
-    pillText: { fontSize: 13, fontWeight: WEIGHT.semibold, color: colors.text },
+    pillText: { fontSize: TYPE.label, fontWeight: WEIGHT.semibold, color: colors.text },
     pillTextSelected: { color: ON_ACCENT },
     input: {
       borderWidth: 1,
@@ -188,11 +264,11 @@ function makeStyles(colors: ThemeColors) {
       borderRadius: RADII.md,
       paddingHorizontal: 14,
       paddingVertical: 12,
-      fontSize: 15,
+      fontSize: TYPE.body,
       color: colors.text,
       backgroundColor: colors.background,
     },
-    freeNote: { fontSize: 11, color: colors.textSecondary, marginTop: 14, textAlign: 'center' },
+    freeNote: { fontSize: TYPE.caption, color: colors.textSecondary, marginTop: SPACING.md, textAlign: 'center' },
     submitButton: {
       backgroundColor: colors.coral,
       borderRadius: RADII.md,
@@ -200,6 +276,6 @@ function makeStyles(colors: ThemeColors) {
       alignItems: 'center',
       marginTop: 10,
     },
-    submitButtonText: { color: ON_ACCENT, fontWeight: WEIGHT.semibold, fontSize: 15 },
+    submitButtonText: { color: ON_ACCENT, fontWeight: WEIGHT.semibold, fontSize: TYPE.body },
   });
 }

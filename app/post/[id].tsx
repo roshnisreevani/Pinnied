@@ -9,12 +9,12 @@ import { CommentsSection } from '@/components/feed/comments-section';
 import { PostCard } from '@/components/feed/post-card';
 import { PennyRatingDisplay } from '@/components/feed/penny-rating';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { FONTS, type ThemeColors } from '@/constants/style';
+import { WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { blockUser, reportContent, type ReportReason } from '@/lib/moderation';
-import { archivePost, fetchPostById, resharePost, setReaction, totalReactions, type Post } from '@/lib/posts';
-import { HOT_THRESHOLD, type ReactionType } from '@/lib/reactions';
+import { archivePost, fetchPostById, resharePost, setReaction, type Post } from '@/lib/posts';
+import type { ReactionType } from '@/lib/reactions';
 
 /**
  * Full-screen view of a single post: media large up top (video keeps its
@@ -68,7 +68,7 @@ export default function PostDetailScreen() {
       myReactions: adding ? [...p.myReactions, type] : p.myReactions.filter((t) => t !== type),
       reactionCounts: {
         ...p.reactionCounts,
-        [type]: Math.max(0, p.reactionCounts[type] + (adding ? 1 : -1)),
+        [type]: Math.max(0, (p.reactionCounts[type] ?? 0) + (adding ? 1 : -1)),
       },
     });
 
@@ -180,7 +180,6 @@ export default function PostDetailScreen() {
                 <PostCard
                   post={post}
                   currentUserId={userId}
-                  isHot={totalReactions(post) >= HOT_THRESHOLD}
                   isPostOfWeek={false}
                   onToggleReaction={handleToggleReaction}
                   onOpenComments={() => {}} // comments are right below
@@ -220,7 +219,7 @@ function makeStyles(colors: ThemeColors) {
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    headerTitle: { fontSize: 16, fontFamily: FONTS.displaySemibold, color: colors.text },
+    headerTitle: { fontSize: 16, fontWeight: WEIGHT.semibold, color: colors.text },
     cardWrap: { marginBottom: 6 },
     ratingWrap: {
       marginTop: 4,
@@ -232,6 +231,6 @@ function makeStyles(colors: ThemeColors) {
       borderColor: colors.border,
       gap: 8,
     },
-    ratingLabel: { fontSize: 12, fontFamily: FONTS.displaySemibold },
+    ratingLabel: { fontSize: 12, fontWeight: WEIGHT.semibold },
   });
 }

@@ -43,7 +43,6 @@ const DECISIVE_SPRING = {
 type Props = {
   session: FeedSession;
   currentUserId: string;
-  isHot: (post: Post) => boolean;
   isPostOfWeek: (post: Post) => boolean;
   streak: number;
   onLeavePost: (postId: string, hasFireReaction: boolean) => void;
@@ -58,7 +57,6 @@ type Props = {
 export function SessionCarousel({
   session,
   currentUserId,
-  isHot,
   isPostOfWeek,
   streak,
   onLeavePost,
@@ -94,7 +92,7 @@ export function SessionCarousel({
 
   const triggerTransition = (direction: 'left' | 'right') => {
     const leaving = session.posts[activeIndex];
-    onLeavePost(leaving.id, leaving.myReactions.includes('fire'));
+    onLeavePost(leaving.id, leaving.myReactions.includes('🔥'));
 
     // Toned-down arrow flash: a quick, single pop-and-fade via withTiming
     // only — no spring-back, so it can't read as part of the "bounce" the
@@ -203,7 +201,6 @@ export function SessionCarousel({
             <SessionPostCard
               post={activePost}
               currentUserId={currentUserId}
-              isHot={isHot(activePost)}
               isPostOfWeek={isPostOfWeek(activePost)}
               streak={streak}
               onToggleReaction={(type) => onToggleReaction(activePost.id, type)}

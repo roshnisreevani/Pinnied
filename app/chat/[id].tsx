@@ -29,7 +29,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
-import { EMOJI_BANK } from '@/components/feed/reaction-bar';
+import { EMOJI_BANK } from '@/lib/reactions';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
@@ -1225,7 +1225,7 @@ function makeStyles(colors: ThemeColors) {
       paddingHorizontal: 16,
       paddingTop: 4,
     },
-    charCounterAtLimit: { color: colors.coral, fontWeight: WEIGHT.semibold },
+    charCounterAtLimit: { color: colors.danger, fontWeight: WEIGHT.semibold },
     micButtonRecording: { backgroundColor: colors.text },
 
     replyQuote: {
@@ -1251,7 +1251,7 @@ function makeStyles(colors: ThemeColors) {
       borderTopColor: colors.border,
     },
     replyBarTextWrap: { flex: 1, gap: 1 },
-    replyBarSender: { fontSize: 11, fontWeight: WEIGHT.bold, color: colors.coral },
+    replyBarSender: { fontSize: 11, fontWeight: WEIGHT.bold, color: colors.blue },
     replyBarContent: { fontSize: 12, color: colors.textSecondary },
     replyBarCancel: { fontSize: 15, color: colors.textSecondary, paddingHorizontal: 4 },
 
@@ -1278,7 +1278,7 @@ function makeStyles(colors: ThemeColors) {
     sheetDivider: { height: 1, backgroundColor: colors.border, marginVertical: 8 },
     sheetAction: { paddingVertical: 12, alignItems: 'center' },
     sheetActionText: { fontSize: 15, fontWeight: WEIGHT.medium, color: colors.text },
-    sheetActionDestructive: { fontSize: 15, fontWeight: WEIGHT.medium, color: colors.coral },
+    sheetActionDestructive: { fontSize: 15, fontWeight: WEIGHT.medium, color: colors.danger },
 
     quickReactionRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
     quickReactionCell: {

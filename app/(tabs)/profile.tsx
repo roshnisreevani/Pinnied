@@ -8,6 +8,7 @@ import {
   Dimensions,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,7 +26,7 @@ import { QrShareModal } from '@/components/profile/qr-share-modal';
 import { SportTagsField } from '@/components/profile/sport-tags-field';
 import { PostThumbnailGrid } from '@/components/feed/post-thumbnail-grid';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { ON_ACCENT, RADII, SPACING, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { errorMessage } from '@/lib/error-message';
@@ -46,6 +47,11 @@ export default function ProfileScreen() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  // Bumped on pull-to-refresh and passed down to HighlightsSection, which
+  // manages its own fetch/state — this is how the parent tells that child
+  // "refetch now" without lifting its state up entirely.
+  const [highlightsRefreshKey, setHighlightsRefreshKey] = useState(0);
   const [shareOpen, setShareOpen] = useState(false);
   const [gameDayShareOpen, setGameDayShareOpen] = useState(false);
   const [avatarViewerOpen, setAvatarViewerOpen] = useState(false);
@@ -58,8 +64,10 @@ export default function ProfileScreen() {
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [similarPeople, setSimilarPeople] = useState<SimilarPerson[]>([]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(
+    async (isRefresh = false) => {
     if (!userId) return;
+    if (isRefresh) setRefreshing(true);
 
     // All independent — fired together instead of one-by-one, so the screen
     // is ready after the slowest single request rather than the sum of all
@@ -101,7 +109,13 @@ export default function ProfileScreen() {
     } else {
       setSimilarPeople([]);
     }
-  }, [userId]);
+    if (isRefresh) {
+      setRefreshing(false);
+      setHighlightsRefreshKey((k) => k + 1);
+    }
+    },
+    [userId]
+  );
 
   // Reload every time this tab gains focus, so edits made on the Edit Profile
   // screen show up immediately when the user comes back.
@@ -125,27 +139,31 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Top row: split left (Settings, Saved) / right (Connections, Archive,
-            Notifications) instead of one clump — easier to scan, and keeps
-            the two "personal config" icons away from the three "content"
-            ones. The old person-add icon linked to /requests — gone now that
-            follows are instant and there's nothing to approve. */}
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.text} />
+        }>
+        {/* Top row: Settings sits alone on the left as the one "account root"
+            icon; everything else is your stuff/social, grouped right and
+            ordered by how often it's touched — Saved and Archive (your own
+            content) before Connections (social), with Notifications last so
+            it lands in the conventional top-right bell position. The old
+            person-add icon linked to /requests — gone now that follows are
+            instant and there's nothing to approve. */}
         <View style={styles.topRow}>
+          <AnimatedPressable hitSlop={8} onPress={() => router.push('/settings')}>
+            <Settings size={22} color={colors.text} strokeWidth={1.75} />
+          </AnimatedPressable>
           <View style={styles.topIcons}>
-            <AnimatedPressable hitSlop={8} onPress={() => router.push('/settings')}>
-              <Settings size={22} color={colors.text} strokeWidth={1.75} />
-            </AnimatedPressable>
             <AnimatedPressable hitSlop={8} onPress={() => router.push('/saved-posts')}>
               <Bookmark size={22} color={colors.text} strokeWidth={1.75} />
             </AnimatedPressable>
-          </View>
-          <View style={styles.topIcons}>
-            <AnimatedPressable hitSlop={8} onPress={() => router.push('/connections')}>
-              <Users size={22} color={colors.text} strokeWidth={1.75} />
-            </AnimatedPressable>
             <AnimatedPressable hitSlop={8} onPress={() => router.push('/archive')}>
               <Archive size={22} color={colors.text} strokeWidth={1.75} />
+            </AnimatedPressable>
+            <AnimatedPressable hitSlop={8} onPress={() => router.push('/connections')}>
+              <Users size={22} color={colors.text} strokeWidth={1.75} />
             </AnimatedPressable>
             <AnimatedPressable hitSlop={8} onPress={() => router.push('/notifications')} style={styles.iconWrap}>
               <Bell size={22} color={colors.text} strokeWidth={1.75} />
@@ -244,10 +262,13 @@ export default function ProfileScreen() {
           </AnimatedPressable>
         </View>
 
-        {/* Upcoming — next RSVP'd game pulled across all groups (see
-            lib/events.ts fetchMyUpcomingEvents). Replaces the old static
-            Pick Your 3 photo grid with something that reflects real
-            commitments and is always relevant, not a one-time upload. */}
+        {/* Highlights first — this is the app's flagship differentiator (AI
+            Roast/Critique), so it gets top billing right under the profile
+            header/actions rather than being buried below the Upcoming game
+            card. Upcoming — next RSVP'd game pulled across all groups (see
+            lib/events.ts fetchMyUpcomingEvents) — follows it. */}
+        {userId ? <HighlightsSection userId={userId} refreshSignal={highlightsRefreshKey} /> : null}
+
         {upcomingEvents.length > 0 ? (
           <Section title="Upcoming" styles={styles}>
             <AnimatedPressable
@@ -268,8 +289,6 @@ export default function ProfileScreen() {
             ) : null}
           </Section>
         ) : null}
-
-        {userId ? <HighlightsSection userId={userId} /> : null}
 
         {/* Pick Your 3 / Featured — a tab switcher instead of two stacked
             grids, so both are always reachable (Featured no longer hides
@@ -474,7 +493,7 @@ function makeStyles(colors: ThemeColors) {
     },
     iconBadgeText: { fontSize: 9, fontWeight: WEIGHT.bold, color: ON_ACCENT },
     topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    topIcons: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    topIcons: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg },
     // Everything in the header is center-aligned, stacked photo-first.
     headerStack: { alignItems: 'center', gap: 8, marginTop: 8 },
     // Combined streak + game-day type pill — one small surface instead of
@@ -490,24 +509,24 @@ function makeStyles(colors: ThemeColors) {
       gap: 10,
     },
     identityPillItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    identityPillText: { fontSize: 12, fontWeight: WEIGHT.semibold, color: colors.text },
-    gameDayEmptyLink: { fontSize: 12, color: colors.coral, textAlign: 'center', marginTop: 2 },
+    identityPillText: { fontSize: TYPE.label, fontWeight: WEIGHT.semibold, color: colors.text },
+    gameDayEmptyLink: { fontSize: TYPE.caption, color: colors.blue, textAlign: 'center', marginTop: 2 },
     name: { fontSize: 22, fontWeight: WEIGHT.bold, color: colors.text, textAlign: 'center' },
     locationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
     // Light rounded container with thin dividers between the three stats.
     statRow: {
       flexDirection: 'row',
       alignItems: 'stretch',
-      marginTop: 18,
+      marginTop: SPACING.xl,
       backgroundColor: colors.borderSoft,
       borderRadius: RADII.lg,
-      paddingVertical: 12,
+      paddingVertical: SPACING.md,
     },
     stat: { flex: 1, alignItems: 'center', gap: 2 },
     statDivider: { width: 1, backgroundColor: colors.border },
     statValue: { fontSize: 17, fontWeight: WEIGHT.bold, color: colors.text },
-    statLabel: { fontSize: 11, color: colors.textSecondary },
-    location: { fontSize: 13, color: colors.textSecondary, textAlign: 'center' },
+    statLabel: { fontSize: TYPE.caption, color: colors.textSecondary },
+    location: { fontSize: TYPE.label, color: colors.textSecondary, textAlign: 'center' },
     bio: {
       fontSize: 14,
       fontStyle: 'italic',
@@ -516,7 +535,7 @@ function makeStyles(colors: ThemeColors) {
       textAlign: 'center',
       paddingHorizontal: 12,
     },
-    sportTagsWrap: { alignItems: 'center', marginTop: 14 },
+    sportTagsWrap: { alignItems: 'center', marginTop: SPACING.lg },
     avatarViewerBackdrop: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.85)',
@@ -524,7 +543,7 @@ function makeStyles(colors: ThemeColors) {
       justifyContent: 'center',
     },
     avatarViewerClose: { position: 'absolute', top: 60, right: 24 },
-    actionRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+    actionRow: { flexDirection: 'row', gap: 10, marginTop: SPACING.xl },
     secondaryButton: {
       flex: 1,
       alignItems: 'center',
@@ -543,16 +562,16 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.coral,
     },
     primaryButtonText: { fontWeight: WEIGHT.semibold, fontSize: 14, color: ON_ACCENT },
-    section: { marginTop: 26, gap: 10 },
-    sectionTitle: { fontSize: 13, fontWeight: WEIGHT.semibold, color: colors.text },
-    contentTabsWrap: { marginTop: 26, gap: 12 },
+    section: { marginTop: SPACING.xxl, gap: SPACING.sm },
+    sectionTitle: { fontSize: TYPE.label, fontWeight: WEIGHT.semibold, color: colors.text },
+    contentTabsWrap: { marginTop: SPACING.xxl, gap: SPACING.md },
     contentTabsRow: {
       flexDirection: 'row',
       gap: 20,
       borderBottomWidth: 1,
       borderBottomColor: colors.borderSoft,
     },
-    contentTab: { fontSize: 13, color: colors.textSecondary, paddingBottom: 8 },
+    contentTab: { fontSize: TYPE.label, color: colors.textSecondary, paddingBottom: 8 },
     contentTabActive: { color: colors.text, fontWeight: WEIGHT.semibold },
     contentTabIndicator: {
       position: 'absolute',
@@ -562,10 +581,10 @@ function makeStyles(colors: ThemeColors) {
       height: 2,
       backgroundColor: colors.coral,
     },
-    contentEmptyText: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', paddingVertical: 20 },
-    upcomingCard: { backgroundColor: colors.borderSoft, borderRadius: RADII.lg, padding: 14 },
+    contentEmptyText: { fontSize: TYPE.label, color: colors.textSecondary, textAlign: 'center', paddingVertical: 20 },
+    upcomingCard: { backgroundColor: colors.borderSoft, borderRadius: RADII.lg, padding: SPACING.md },
     upcomingTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-    upcomingDate: { fontSize: 11, fontWeight: WEIGHT.semibold, color: colors.coral },
+    upcomingDate: { fontSize: TYPE.caption, fontWeight: WEIGHT.semibold, color: colors.coral },
     goingPill: {
       backgroundColor: colors.background,
       borderRadius: RADII.pill,
@@ -573,8 +592,8 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 2,
     },
     goingPillText: { fontSize: 10, fontWeight: WEIGHT.semibold, color: colors.text },
-    upcomingTitle: { fontSize: 15, fontWeight: WEIGHT.semibold, color: colors.text },
-    seeAllLink: { fontSize: 12, color: colors.coral, textAlign: 'center' },
+    upcomingTitle: { fontSize: TYPE.body, fontWeight: WEIGHT.semibold, color: colors.text },
+    seeAllLink: { fontSize: TYPE.caption, color: colors.blue, textAlign: 'center' },
     shareBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
     shareSheet: {
       backgroundColor: colors.background,

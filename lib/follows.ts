@@ -1,3 +1,4 @@
+import { fetchBlockedEitherDirection } from '@/lib/moderation';
 import { supabase } from '@/lib/supabase';
 
 // Directional follow model (see supabase/migrations/20260712000000_follows.sql):
@@ -126,4 +127,48 @@ export async function fetchMutualFollows(userId: string, otherUserId: string): P
   const [mine, theirs] = await Promise.all([fetchFollowing(userId), fetchFollowing(otherUserId)]);
   const mineIds = new Set(mine.map((f) => f.id));
   return theirs.filter((f) => mineIds.has(f.id));
+}
+
+export type SuggestedPerson = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  location: string;
+};
+
+/**
+ * "Suggested for you" — powers Discover's cold-start layer, since a small
+ * user base means the Following/Discover feeds otherwise look identical.
+ * There's no real ranking signal yet (no interests graph, no activity
+ * score), so this pulls a batch of people the user isn't already following
+ * (and hasn't blocked either direction), and shuffles client-side so the
+ * same faces don't pin themselves to the top of every Discover load.
+ */
+export async function fetchSuggestedPeople(userId: string, limit = 8): Promise<SuggestedPerson[]> {
+  const [{ data, error }, followingIds, blockedIds] = await Promise.all([
+    supabase.from('profiles').select('id, name, avatar_url, location').limit(50),
+    fetchFollowingIds(userId),
+    fetchBlockedEitherDirection(userId),
+  ]);
+
+  if (error) throw error;
+
+  const excluded = new Set([userId, ...followingIds, ...blockedIds]);
+  const candidates = (data ?? [])
+    .filter((row) => !excluded.has(row.id as string))
+    .map((row) => ({
+      id: row.id as string,
+      name: (row.name as string | null)?.trim() || 'Nameless legend',
+      avatarUrl: row.avatar_url as string | null,
+      location: (row.location as string | null) ?? '',
+    }));
+
+  // Fisher-Yates shuffle so refreshing Discover doesn't always show the same
+  // handful of people in the same order.
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+
+  return candidates.slice(0, limit);
 }

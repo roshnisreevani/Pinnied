@@ -14,7 +14,7 @@ import {
 import { ContentMenu } from '@/components/moderation/content-menu';
 import { CrestAvatar } from '@/components/profile/crest-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { FONTS, ON_ACCENT, RADII, type ThemeColors } from '@/constants/style';
+import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
 import { errorMessage } from '@/lib/error-message';
 import { blockUser, reportContent, type ReportReason } from '@/lib/moderation';
@@ -340,13 +340,13 @@ function makeStyles(colors: ThemeColors) {
     replyRow: { marginLeft: 44 },
     commentTextWrap: { flex: 1, paddingTop: 2 },
     commentInline: { fontSize: 15, lineHeight: 21, color: colors.text },
-    commentAuthor: { fontFamily: FONTS.displaySemibold, fontSize: 15, color: colors.text },
-    commentBody: { fontFamily: FONTS.displayRegular, fontSize: 15, color: colors.text },
+    commentAuthor: { fontWeight: WEIGHT.semibold, fontSize: 15, color: colors.text },
+    commentBody: { fontSize: 15, color: colors.text },
     actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 4 },
-    replyActionText: { fontSize: 12, fontFamily: FONTS.displaySemibold, color: colors.textSecondary },
+    replyActionText: { fontSize: 12, fontWeight: WEIGHT.semibold, color: colors.textSecondary },
     repliesToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 56 },
     repliesToggleLine: { width: 24, height: 1, backgroundColor: colors.border },
-    repliesToggleText: { fontSize: 12, fontFamily: FONTS.displaySemibold, color: colors.textSecondary },
+    repliesToggleText: { fontSize: 12, fontWeight: WEIGHT.semibold, color: colors.textSecondary },
     rightCol: { alignItems: 'center', gap: 6 },
     likeBtn: { paddingTop: 8 },
     moreBtn: { paddingLeft: 4 },
@@ -361,7 +361,7 @@ function makeStyles(colors: ThemeColors) {
       borderTopColor: colors.border,
       backgroundColor: colors.borderSoft,
     },
-    replyingChipText: { flex: 1, fontSize: 12, fontFamily: FONTS.displaySemibold, color: colors.textSecondary },
+    replyingChipText: { flex: 1, fontSize: 12, fontWeight: WEIGHT.semibold, color: colors.textSecondary },
     composer: {
       flexDirection: 'row',
       alignItems: 'flex-end',
@@ -379,7 +379,6 @@ function makeStyles(colors: ThemeColors) {
       paddingHorizontal: 16,
       paddingVertical: 11,
       fontSize: 15,
-      fontFamily: FONTS.displayRegular,
       color: colors.text,
       maxHeight: 100,
       backgroundColor: colors.background,
@@ -393,6 +392,6 @@ function makeStyles(colors: ThemeColors) {
       alignItems: 'center',
     },
     sendButtonDisabled: { opacity: 0.4 },
-    sendButtonText: { color: ON_ACCENT, fontFamily: FONTS.displaySemibold, fontSize: 15 },
+    sendButtonText: { color: ON_ACCENT, fontWeight: WEIGHT.semibold, fontSize: 15 },
   });
 }

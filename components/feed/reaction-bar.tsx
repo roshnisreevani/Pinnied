@@ -1,36 +1,16 @@
 import * as Haptics from 'expo-haptics';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
-import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
 import { fetchReactionUsers } from '@/lib/posts';
-import type { ReactionType } from '@/lib/reactions';
+import { EMOJI_BANK, PINNED_REACTIONS, type ReactionType } from '@/lib/reactions';
 
-export const WORD_BANK = [
-  'Dope', 'Baller', 'Clutch', 'No way', 'Bosh', 'Rough',
-  'Nasty', "Let's go", 'Rookie move', 'Unreal', 'Mid', 'Sheesh',
-  'Goat move', 'Respect', 'W', 'L', 'Lowkey fire', 'Filthy',
-];
-
-export const EMOJI_BANK = [
-  '🔥', '💪', '😤', '🏆', '💀', '😂',
-  '🫡', '🤙', '👑', '🙌', '😮', '🥶',
-  '🐐', '🤯', '😬', '🫠', '🤣', '👏',
-];
-
-const EMOJI_BANK_SET = new Set(EMOJI_BANK);
-
-// Written by double-tap on media — stored in DB but never shown as a pill
-const HIDDEN = new Set(['fire']);
+// The "+" grid only needs the emoji NOT already pinned in the scoreboard —
+// showing all 10 there too would just duplicate the always-visible trio.
+const OVERFLOW_EMOJI = EMOJI_BANK.filter((e) => !PINNED_REACTIONS.includes(e));
 
 type Props = {
   postId: string;
@@ -39,26 +19,21 @@ type Props = {
   onToggle: (type: ReactionType) => void;
 };
 
+/**
+ * Scoreboard-style reaction tally — "🔥 12 — 👑 3 — 😮 1" — instead of a
+ * dynamic pill row that reflowed based on whichever reactions happened to
+ * be most popular. The 3 PINNED_REACTIONS are always visible in the same
+ * order and always tappable; anything else in EMOJI_BANK is one tap behind
+ * the "+" button. Leans into the sports framing instead of hiding reaction
+ * counts behind a generic "like" pattern.
+ */
 export function ReactionBar({ postId, counts, active, onToggle }: Props) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [wordOpen, setWordOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [reactorsFor, setReactorsFor] = useState<string | null>(null);
   const [reactorNames, setReactorNames] = useState<string[] | null>(null);
-
-  const topWord = useMemo(() => {
-    return Object.entries(counts)
-      .filter(([type, count]) => WORD_BANK.includes(type) && type !== 'W' && count > 0)
-      .sort((a, b) => b[1] - a[1])[0] ?? null;
-  }, [counts]);
-
-  const topEmoji = useMemo(() => {
-    return Object.entries(counts)
-      .filter(([type, count]) => EMOJI_BANK_SET.has(type) && count > 0)
-      .sort((a, b) => b[1] - a[1])[0] ?? null;
-  }, [counts]);
 
   const handleShowReactors = (type: string) => {
     setReactorsFor(type);
@@ -75,88 +50,42 @@ export function ReactionBar({ postId, counts, active, onToggle }: Props) {
 
   return (
     <View style={styles.row}>
-      {/* W — instant like button */}
-      <Pressable
-        style={[styles.bankBtn, active.includes('W' as ReactionType) && styles.bankBtnActive]}
-        onPress={() => handleToggle('W')}
-        hitSlop={6}>
-        <Text style={[styles.bankBtnLabel, active.includes('W' as ReactionType) && styles.bankBtnLabelActive]}>W</Text>
+      {PINNED_REACTIONS.map((type, i) => (
+        <View key={type} style={styles.scoreCell}>
+          {i > 0 ? <Text style={styles.dash}>—</Text> : null}
+          <ScoreboardEntry
+            type={type}
+            count={counts[type] ?? 0}
+            isActive={active.includes(type as ReactionType)}
+            colors={colors}
+            styles={styles}
+            onPress={() => handleToggle(type)}
+            onLongPress={() => handleShowReactors(type)}
+          />
+        </View>
+      ))}
+
+      {/* "+" — the other 7 EMOJI_BANK emoji, one tap deeper */}
+      <Pressable style={styles.moreBtn} onPress={() => setEmojiOpen(true)} hitSlop={6}>
+        <Text style={styles.moreBtnText}>+</Text>
       </Pressable>
 
-      {/* ... — opens word bank */}
-      <Pressable style={styles.bankBtn} onPress={() => setWordOpen(true)} hitSlop={6}>
-        <Text style={styles.bankBtnLabel}>···</Text>
-      </Pressable>
-
-      {/* Emoji bank */}
-      <Pressable style={styles.bankBtn} onPress={() => setEmojiOpen(true)} hitSlop={6}>
-        <Text style={styles.bankBtnEmoji}>😊</Text>
-      </Pressable>
-
-      {/* Most popular word reaction */}
-      {topWord ? (
-        <ReactionPill
-          type={topWord[0]}
-          count={topWord[1]}
-          isActive={active.includes(topWord[0] as ReactionType)}
-          colors={colors}
-          styles={styles}
-          onPress={() => handleToggle(topWord[0])}
-          onLongPress={() => handleShowReactors(topWord[0])}
-        />
-      ) : null}
-
-      {/* Most popular emoji reaction */}
-      {topEmoji ? (
-        <ReactionPill
-          type={topEmoji[0]}
-          count={topEmoji[1]}
-          isActive={active.includes(topEmoji[0] as ReactionType)}
-          colors={colors}
-          styles={styles}
-          onPress={() => handleToggle(topEmoji[0])}
-          onLongPress={() => handleShowReactors(topEmoji[0])}
-        />
-      ) : null}
-
-      {/* ── Word bank modal ── */}
-      <Modal visible={wordOpen} transparent animationType="fade" onRequestClose={() => setWordOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setWordOpen(false)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.sheetTitle}>React with a word</Text>
-            <View style={styles.wordGrid}>
-              {WORD_BANK.map((word) => {
-                const isActive = active.includes(word as ReactionType);
-                return (
-                  <Pressable
-                    key={word}
-                    style={[styles.wordPill, isActive && styles.wordPillActive]}
-                    onPress={() => { handleToggle(word); setWordOpen(false); }}>
-                    <Text style={[styles.wordPillText, isActive && styles.wordPillTextActive]}>
-                      {word}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* ── Emoji bank modal ── */}
+      {/* ── Overflow emoji modal ── */}
       <Modal visible={emojiOpen} transparent animationType="fade" onRequestClose={() => setEmojiOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setEmojiOpen(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.sheetTitle}>React with an emoji</Text>
             <View style={styles.emojiGrid}>
-              {EMOJI_BANK.map((emoji) => {
+              {OVERFLOW_EMOJI.map((emoji) => {
                 const isActive = active.includes(emoji as ReactionType);
+                const count = counts[emoji] ?? 0;
                 return (
                   <Pressable
                     key={emoji}
                     style={[styles.emojiCell, isActive && styles.emojiCellActive]}
                     onPress={() => { handleToggle(emoji); setEmojiOpen(false); }}>
                     <Text style={styles.emojiText}>{emoji}</Text>
+                    {count > 0 ? <Text style={styles.emojiCellCount}>{count}</Text> : null}
                   </Pressable>
                 );
               })}
@@ -165,7 +94,7 @@ export function ReactionBar({ postId, counts, active, onToggle }: Props) {
         </Pressable>
       </Modal>
 
-      {/* ── Reactors modal (long-press on a pill) ── */}
+      {/* ── Reactors modal (long-press a scoreboard entry) ── */}
       <Modal
         visible={reactorsFor !== null}
         transparent
@@ -190,7 +119,10 @@ export function ReactionBar({ postId, counts, active, onToggle }: Props) {
   );
 }
 
-function ReactionPill({
+// A single "🔥 12" scoreboard entry — the count flips (fade + slide) on
+// change instead of just re-rendering, so incrementing reads as a live
+// tally ticking up rather than a static number that happened to update.
+function ScoreboardEntry({
   type, count, isActive, colors, styles, onPress, onLongPress,
 }: {
   type: string;
@@ -201,70 +133,52 @@ function ReactionPill({
   onPress: () => void;
   onLongPress: () => void;
 }) {
-  const pop = useSharedValue(1);
-  const popStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+  const flip = useSharedValue(1);
 
-  const handlePress = () => {
-    pop.value = withSequence(
-      withTiming(1.35, { duration: 100 }),
-      withSpring(1, { damping: 8, stiffness: 260 }),
-    );
-    onPress();
-  };
+  useEffect(() => {
+    flip.value = withSequence(withTiming(0, { duration: 90 }), withTiming(1, { duration: 90 }));
+  }, [count, flip]);
 
-  const isEmoji = EMOJI_BANK_SET.has(type);
+  const flipStyle = useAnimatedStyle(() => ({
+    opacity: flip.value,
+    transform: [{ translateY: (1 - flip.value) * -6 }],
+  }));
 
   return (
-    <AnimatedPressable
-      style={[styles.pill, isActive && { borderColor: colors.coral, backgroundColor: colors.coral + '15' }]}
-      onPress={handlePress}
-      onLongPress={onLongPress}
-      haptic={false}>
-      <Animated.Text style={[isEmoji ? styles.pillEmoji : styles.pillWord, popStyle]}>
-        {type}
-      </Animated.Text>
-      <Text style={[styles.pillCount, isActive && { color: colors.coral, fontWeight: WEIGHT.bold }]}>
+    <Pressable
+      style={styles.scoreEntry}
+      onPress={onPress}
+      onLongPress={count > 0 ? onLongPress : undefined}
+      hitSlop={6}>
+      <Text style={styles.scoreEmoji}>{type}</Text>
+      <Animated.Text style={[styles.scoreCount, isActive && styles.scoreCountActive, flipStyle]}>
         {count}
-      </Text>
-    </AnimatedPressable>
+      </Animated.Text>
+    </Pressable>
   );
 }
 
 function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+    scoreCell: { flexDirection: 'row', alignItems: 'center' },
+    dash: { fontSize: 12, color: colors.textSecondary, marginHorizontal: 4 },
+    scoreEntry: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 2 },
+    scoreEmoji: { fontSize: 15 },
+    scoreCount: { fontSize: 13, fontWeight: WEIGHT.semibold, color: colors.text, fontVariant: ['tabular-nums'] },
+    scoreCountActive: { color: colors.coral },
 
-    pill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      paddingHorizontal: 9,
-      paddingVertical: 5,
-      borderRadius: RADII.pill,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-    },
-    pillEmoji: { fontSize: 13 },
-    pillWord: { fontSize: 11, fontWeight: WEIGHT.semibold, color: colors.text },
-    pillCount: { fontSize: 11, color: colors.textSecondary, fontWeight: WEIGHT.medium },
-
-    bankBtn: {
-      width: 30,
-      height: 30,
+    moreBtn: {
+      width: 26,
+      height: 26,
       borderRadius: RADII.pill,
       borderWidth: 1,
       borderColor: colors.border,
       alignItems: 'center',
       justifyContent: 'center',
+      marginLeft: 8,
     },
-    bankBtnActive: {
-      borderColor: colors.coral,
-      backgroundColor: colors.coral + '15',
-    },
-    bankBtnLabel: { fontSize: 12, fontWeight: WEIGHT.bold, color: colors.textSecondary },
-    bankBtnLabelActive: { color: colors.coral },
-    bankBtnEmoji: { fontSize: 14 },
+    moreBtnText: { fontSize: 14, fontWeight: WEIGHT.semibold, color: colors.textSecondary, marginTop: -1 },
 
     backdrop: {
       flex: 1,
@@ -286,30 +200,6 @@ function makeStyles(colors: ThemeColors) {
       textAlign: 'center',
     },
 
-    wordGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    wordPill: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: RADII.pill,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-    },
-    wordPillActive: {
-      borderColor: colors.coral,
-      backgroundColor: colors.coral + '15',
-    },
-    wordPillText: {
-      fontSize: 13,
-      fontWeight: WEIGHT.semibold,
-      color: colors.text,
-    },
-    wordPillTextActive: { color: colors.coral },
-
     emojiGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -327,6 +217,7 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.coral + '20',
     },
     emojiText: { fontSize: 26 },
+    emojiCellCount: { fontSize: 9, color: colors.textSecondary, fontWeight: WEIGHT.medium },
 
     reactorsSheet: { alignItems: 'center' },
     reactorName: { fontSize: 14, color: colors.text },

@@ -6,7 +6,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { FONTS, ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { fetchGroupBrackets, type Bracket } from '@/lib/brackets';
@@ -53,7 +53,7 @@ export default function BracketsListScreen() {
   const renderBracket = (b: Bracket) => (
     <Pressable key={b.id} style={styles.bracketCard} onPress={() => router.push(`/group/brackets/detail/${b.id}`)}>
       <View style={styles.bracketCardTop}>
-        <Trophy size={16} color={b.status === 'completed' ? colors.coral : colors.text} strokeWidth={1.75} />
+        <Trophy size={16} color={b.status === 'completed' ? colors.blue : colors.text} strokeWidth={1.75} />
         <Text style={styles.bracketName} numberOfLines={1}>{b.name}</Text>
         <View style={[styles.statusBadge, b.status === 'completed' && styles.statusBadgeDone]}>
           <Text style={[styles.statusText, b.status === 'completed' && styles.statusTextDone]}>
@@ -156,9 +156,9 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 3,
       backgroundColor: colors.borderSoft,
     },
-    statusBadgeDone: { backgroundColor: colors.coral + '22' },
+    statusBadgeDone: { backgroundColor: colors.blue + '22' },
     statusText: { fontSize: 11, fontWeight: WEIGHT.bold, color: colors.textSecondary },
-    statusTextDone: { color: colors.coral },
+    statusTextDone: { color: colors.blue },
     bracketMeta: { fontSize: 12, color: colors.textSecondary, marginLeft: 24 },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
     emptyTitle: { fontSize: 17, fontWeight: WEIGHT.bold, color: colors.text },

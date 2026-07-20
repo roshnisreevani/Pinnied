@@ -52,6 +52,42 @@ export const RADII = {
   pill: 999,
 } as const;
 
+// Vertical rhythm scale — before this, every screen's author eyeballed
+// section margins independently (26/22/18/16/14 all meaning "space before
+// the next block" in different files), so structurally identical layouts
+// (Profile, Settings, Archive, highlight detail) all felt slightly
+// different for no real reason. Use these instead of bare numbers for
+// section gaps, card padding, and row gaps.
+export const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 28,
+} as const;
+
+// Named type scale — same problem as spacing: "screen title" alone existed
+// at 13/16/20/24px across the app, and "muted caption" text existed at
+// 11/12/13px with no rule for which. Roles below map to how each size is
+// actually used:
+//   caption   — timestamps, muted metadata, tiny labels under an icon
+//   label     — section titles, tab labels, form field labels
+//   body      — default readable text (comments, messages, descriptions)
+//   bodyLarge — emphasized body text, card titles
+//   subtitle  — screen header titles (the "Archive" / "Roast" in a nav bar)
+//   title     — big on-screen headings (empty-state titles, feature titles)
+//   display   — hero moments (auth wordmark)
+export const TYPE = {
+  caption: 11,
+  label: 13,
+  body: 15,
+  bodyLarge: 16,
+  subtitle: 17,
+  title: 20,
+  display: 32,
+} as const;
+
 export const HAIRLINE = 1;
 
 // Coral doesn't change between themes, so text/icons drawn on top of a
@@ -73,14 +109,8 @@ export const DARK_SURFACE = '#14141A';
 export const ON_DARK_SURFACE = '#FFFFFF';
 export const ON_DARK_SURFACE_SECONDARY = '#9A968C';
 
-// Custom brand fonts, loaded in app/_layout.tsx. FONTS.display is the main
-// headline font (Space Grotesk — geometric, distinct from the system font,
-// used for wordmarks/names/section titles). FONTS.marker is a bold
-// handwritten accent font used sparingly for playful moments.
-export const FONTS = {
-  display: 'Urbanist_700Bold',
-  displaySemibold: 'Urbanist_600SemiBold',
-  displayMedium: 'Urbanist_500Medium',
-  displayRegular: 'Urbanist_400Regular',
-  marker: 'PermanentMarker_400Regular',
-} as const;
+// The app deliberately uses the system font everywhere (via plain
+// `fontWeight` + WEIGHT above) rather than a custom typeface — a prior
+// Urbanist/Permanent Marker setup (FONTS.*) was only ever applied to a
+// handful of screens, creating visual inconsistency with the rest of the
+// app, and has been removed in favor of one consistent look throughout.

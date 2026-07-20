@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -84,6 +85,7 @@ export function CreateEventModal({ visible, groupId, userId, onClose, onCreated 
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.card} onPress={() => {}}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
@@ -170,6 +172,7 @@ export function CreateEventModal({ visible, groupId, userId, onClose, onCreated 
           </ScrollView>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

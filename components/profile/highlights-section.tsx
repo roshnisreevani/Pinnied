@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Flame, Plus, Target } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -9,9 +9,15 @@ import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
 import { fetchMyHighlightClips, type HighlightClip } from '@/lib/highlights';
 
-type Props = { userId: string };
+type Props = {
+  userId: string;
+  // Bumped by the parent's pull-to-refresh — this component manages its own
+  // fetch, so the parent can't just call a shared `load`; incrementing this
+  // number is how it says "refetch now" from the outside.
+  refreshSignal?: number;
+};
 
-export function HighlightsSection({ userId }: Props) {
+export function HighlightsSection({ userId, refreshSignal }: Props) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
@@ -38,6 +44,17 @@ export function HighlightsSection({ userId }: Props) {
       load();
     }, [load])
   );
+
+  // Skip the very first run (mount already triggers a load via
+  // useFocusEffect above) — only refetch on refreshSignal changes after that.
+  const isFirstRefreshSignal = useRef(true);
+  useEffect(() => {
+    if (isFirstRefreshSignal.current) {
+      isFirstRefreshSignal.current = false;
+      return;
+    }
+    load();
+  }, [refreshSignal, load]);
 
   if (loading) return null;
 

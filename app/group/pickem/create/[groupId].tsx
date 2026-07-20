@@ -1,7 +1,18 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
@@ -86,6 +97,7 @@ export default function CreatePickEmScreen() {
       {loadingMembers ? (
         <ActivityIndicator color={colors.text} style={styles.spinner} />
       ) : (
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <TextInput
             style={styles.input}
@@ -127,6 +139,7 @@ export default function CreatePickEmScreen() {
             );
           })}
         </ScrollView>
+        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );

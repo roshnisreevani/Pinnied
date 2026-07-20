@@ -5,13 +5,14 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CARD_WIDTH } from '@/components/feed/card-layout';
 import { FlyingReaction } from '@/components/feed/flying-reaction';
+import { HeatMeter } from '@/components/feed/heat-meter';
 import { PostVideo } from '@/components/feed/post-video';
 import { GradientScrim } from '@/components/feed/gradient-scrim';
 import { ReactionBar } from '@/components/feed/reaction-bar';
 import { StreakBadge } from '@/components/feed/streak-badge';
 import { ContentMenu } from '@/components/moderation/content-menu';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
-import { GOLD, ON_ACCENT, ON_DARK_SURFACE, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { GOLD, ON_DARK_SURFACE, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
 import { STREAK_DISPLAY_THRESHOLD } from '@/lib/feed-streak';
 import type { ReportReason } from '@/lib/moderation';
@@ -24,7 +25,6 @@ const DOUBLE_TAP_MS = 280;
 type Props = {
   post: Post;
   currentUserId: string;
-  isHot: boolean;
   isPostOfWeek: boolean;
   streak: number;
   onToggleReaction: (type: ReactionType) => void;
@@ -66,7 +66,6 @@ function sportLabel(sportTag: string | null): string {
 export function SessionPostCard({
   post,
   currentUserId,
-  isHot,
   isPostOfWeek,
   streak,
   onToggleReaction,
@@ -85,7 +84,7 @@ export function SessionPostCard({
   const [flyKey, setFlyKey] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const isOwn = post.authorId === currentUserId;
-  const hasReactedFire = post.myReactions.includes('fire');
+  const hasReactedFire = post.myReactions.includes('🔥');
   const showStreak = hasReactedFire && streak >= STREAK_DISPLAY_THRESHOLD;
 
   // Single tap opens the full-screen post view; double tap fires 🔥. The
@@ -99,8 +98,8 @@ export function SessionPostCard({
         singleTapTimer.current = null;
       }
       setFlyKey((k) => k + 1);
-      if (!post.myReactions.includes('fire')) {
-        onToggleReaction('fire');
+      if (!post.myReactions.includes('🔥')) {
+        onToggleReaction('🔥');
       }
     } else if (onOpenPost) {
       singleTapTimer.current = setTimeout(() => {
@@ -160,10 +159,6 @@ export function SessionPostCard({
               <View style={styles.crownBadge}>
                 <Text style={styles.crownBadgeText}>👑 Post of the Week</Text>
               </View>
-            ) : isHot ? (
-              <View style={styles.hotBadge}>
-                <Text style={styles.hotBadgeText}>🔥 HOT</Text>
-              </View>
             ) : null}
             <Pressable style={styles.menuButton} onPress={() => setMenuOpen(true)} hitSlop={8}>
               <MoreHorizontal size={18} color={ON_DARK_SURFACE} strokeWidth={2} />
@@ -192,6 +187,7 @@ export function SessionPostCard({
             <StreakBadge streak={streak} />
           </View>
         ) : null}
+        <HeatMeter fireCount={post.reactionCounts['🔥'] ?? 0} />
         <View style={styles.footerRow}>
           <ReactionBar
             postId={post.id}
@@ -262,13 +258,6 @@ function makeStyles(colors: ThemeColors) {
     timeText: { fontSize: 10, color: 'rgba(255,255,255,0.75)' },
     reshareLabel: { fontSize: 10, color: 'rgba(255,255,255,0.75)' },
     topRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    hotBadge: {
-      backgroundColor: colors.coral,
-      borderRadius: RADII.pill,
-      paddingHorizontal: 9,
-      paddingVertical: 4,
-    },
-    hotBadgeText: { color: ON_ACCENT, fontSize: 10, fontWeight: WEIGHT.bold },
     crownBadge: {
       backgroundColor: GOLD,
       borderRadius: RADII.pill,

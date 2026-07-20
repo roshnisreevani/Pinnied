@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { FONTS } from '@/constants/style';
+import { WEIGHT } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
 
 const PINNIE_COLORS = ['#D93025', '#E8622A', '#F5C518', '#2E9E52', '#C9A227'];
@@ -76,10 +76,10 @@ export function PennyRatingDisplay({ rating }: { rating: number }) {
 
 const styles = StyleSheet.create({
   selectorWrap: { gap: 16, alignItems: 'center' },
-  sectionLabel: { fontSize: 16, fontFamily: FONTS.displaySemibold, textAlign: 'center' },
+  sectionLabel: { fontSize: 16, fontWeight: WEIGHT.semibold, textAlign: 'center' },
   row: { flexDirection: 'row', justifyContent: 'center', gap: 14 },
   pinnieWrap: { alignItems: 'center', gap: 7 },
-  pinnieLabel: { fontSize: 11, fontFamily: FONTS.displaySemibold, textAlign: 'center' },
+  pinnieLabel: { fontSize: 11, fontWeight: WEIGHT.semibold, textAlign: 'center' },
   displayWrap: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  displayLabel: { fontSize: 13, fontFamily: FONTS.displaySemibold },
+  displayLabel: { fontSize: 13, fontWeight: WEIGHT.semibold },
 });

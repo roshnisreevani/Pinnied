@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
@@ -281,6 +282,7 @@ export default function OpenGameDetailScreen() {
         )}
       </View>
 
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
       <ScrollView contentContainerStyle={styles.content}>
         {game.isCancelled ? (
           <View style={styles.cancelledBanner}>
@@ -427,7 +429,7 @@ export default function OpenGameDetailScreen() {
       </ScrollView>
 
       {!isOrganizer && !game.isCancelled && game.gameStatus !== 'completed' && (
-        <View style={styles.footer}>
+        <View style={styles.footer} pointerEvents="box-none">
           <AnimatedPressable
             style={[styles.joinButton, myStatus !== 'none' && styles.leaveButton]}
             onPress={handleJoinLeave}
@@ -452,9 +454,10 @@ export default function OpenGameDetailScreen() {
           </AnimatedPressable>
         </View>
       )}
+      </KeyboardAvoidingView>
 
       <Modal visible={requestModalVisible} transparent animationType="fade" onRequestClose={() => setRequestModalVisible(false)}>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Request to join</Text>
             <Text style={styles.modalSubtitle}>
@@ -483,7 +486,7 @@ export default function OpenGameDetailScreen() {
               </AnimatedPressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

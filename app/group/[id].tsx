@@ -17,10 +17,9 @@ import {
   fetchGroupPosts,
   resharePost,
   setReaction,
-  totalReactions,
   type Post,
 } from '@/lib/posts';
-import { HOT_THRESHOLD, type ReactionType } from '@/lib/reactions';
+import type { ReactionType } from '@/lib/reactions';
 import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
@@ -133,7 +132,7 @@ export default function GroupDetailScreen() {
         const myReactions = adding ? [...p.myReactions, type] : p.myReactions.filter((t) => t !== type);
         const reactionCounts = {
           ...p.reactionCounts,
-          [type]: Math.max(0, p.reactionCounts[type] + (adding ? 1 : -1)),
+          [type]: Math.max(0, (p.reactionCounts[type] ?? 0) + (adding ? 1 : -1)),
         };
         return { ...p, myReactions, reactionCounts };
       });
@@ -338,7 +337,6 @@ export default function GroupDetailScreen() {
                 key={post.id}
                 post={post}
                 currentUserId={userId ?? ''}
-                isHot={totalReactions(post) >= HOT_THRESHOLD}
                 isPostOfWeek={post.id === postOfWeekId}
                 onToggleReaction={(type) => handleToggleReaction(post.id, type)}
                 onOpenComments={() => setCommentsPostId(post.id)}

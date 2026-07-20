@@ -1,6 +1,6 @@
 import { ChevronDown, X } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
@@ -62,6 +62,7 @@ export function SportPickerField({ value, onChange }: Props) {
         onRequestClose={() => setOpen(false)}
         statusBarTranslucent={false}>
         <SafeAreaView style={styles.modalFlex} edges={['top']}>
+        <KeyboardAvoidingView style={styles.modalFlex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
             <Text style={styles.modalTitle}>Pick a sport</Text>
             <AnimatedPressable onPress={() => setOpen(false)} hitSlop={12}>
@@ -93,6 +94,7 @@ export function SportPickerField({ value, onChange }: Props) {
               <Text style={styles.empty}>Nothing matches "{query}". Try "other".</Text>
             }
           />
+        </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
     </View>

@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -20,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SportPickerField } from '@/components/create-post/sport-picker-field';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { FONTS, ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { createBracket, type SeedingMethod } from '@/lib/brackets';
@@ -110,6 +111,7 @@ export default function CreateBracketScreen() {
         </AnimatedPressable>
       </View>
 
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Name */}
         <View style={styles.field}>
@@ -166,7 +168,7 @@ export default function CreateBracketScreen() {
               <View style={[styles.datePickerSheet, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <View style={styles.datePickerHeader}>
                   <Pressable onPress={() => setShowDatePicker(false)}>
-                    <Text style={[styles.datePickerDone, { color: colors.coral }]}>Done</Text>
+                    <Text style={[styles.datePickerDone, { color: colors.text }]}>Done</Text>
                   </Pressable>
                 </View>
                 <DateTimePicker
@@ -255,6 +257,7 @@ export default function CreateBracketScreen() {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, View } 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { ON_ACCENT, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { ON_ACCENT, RADII, SPACING, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme, useThemeColors } from '@/contexts/theme-context';
 import { deleteAccount } from '@/lib/account';
@@ -279,11 +279,11 @@ function makeStyles(colors: ThemeColors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    headerTitle: { fontSize: 16, fontWeight: WEIGHT.bold, color: colors.text },
+    headerTitle: { fontSize: TYPE.subtitle, fontWeight: WEIGHT.bold, color: colors.text },
     content: { padding: 20, paddingBottom: 60, gap: 4 },
-    section: { marginTop: 22, gap: 8 },
+    section: { marginTop: SPACING.xl, gap: SPACING.sm },
     sectionTitle: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       fontWeight: WEIGHT.bold,
       color: colors.textSecondary,
       textTransform: 'uppercase',
@@ -306,8 +306,8 @@ function makeStyles(colors: ThemeColors) {
       backgroundColor: colors.background,
     },
     rowText: { flex: 1, paddingRight: 12, gap: 2 },
-    rowLabel: { fontSize: 14, fontWeight: WEIGHT.medium, color: colors.text },
-    rowSublabel: { fontSize: 12, color: colors.textSecondary },
+    rowLabel: { fontSize: TYPE.body, fontWeight: WEIGHT.medium, color: colors.text },
+    rowSublabel: { fontSize: TYPE.caption, color: colors.textSecondary },
     logoutRow: {
       paddingHorizontal: 14,
       paddingVertical: 13,
@@ -316,10 +316,10 @@ function makeStyles(colors: ThemeColors) {
       borderRadius: RADII.md,
       backgroundColor: colors.background,
     },
-    logoutText: { fontSize: 14, fontWeight: WEIGHT.semibold, color: colors.text },
-    dangerZone: { marginTop: 34, gap: 8, paddingTop: 18, borderTopWidth: 1, borderTopColor: colors.border },
+    logoutText: { fontSize: TYPE.body, fontWeight: WEIGHT.semibold, color: colors.text },
+    dangerZone: { marginTop: SPACING.xxl, gap: SPACING.sm, paddingTop: SPACING.lg, borderTopWidth: 1, borderTopColor: colors.border },
     dangerLabel: {
-      fontSize: 12,
+      fontSize: TYPE.caption,
       fontWeight: WEIGHT.bold,
       color: colors.danger,
       textTransform: 'uppercase',
@@ -331,7 +331,7 @@ function makeStyles(colors: ThemeColors) {
       paddingVertical: 13,
       alignItems: 'center',
     },
-    deleteButtonText: { fontWeight: WEIGHT.semibold, color: ON_ACCENT, fontSize: 14 },
-    dangerHint: { fontSize: 12, color: colors.textSecondary },
+    deleteButtonText: { fontWeight: WEIGHT.semibold, color: ON_ACCENT, fontSize: TYPE.body },
+    dangerHint: { fontSize: TYPE.caption, color: colors.textSecondary },
   });
 }
