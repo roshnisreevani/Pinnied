@@ -20,6 +20,7 @@ import { ShareSheet } from '@/components/feed/share-sheet';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { GOLD, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
+import { aiModeColor, aiModeLabel } from '@/lib/ai-mode-style';
 import type { ReportReason } from '@/lib/moderation';
 import type { Post } from '@/lib/posts';
 import { SPORTS } from '@/lib/sports';
@@ -183,6 +184,16 @@ export function PostCard({
             <Image source={{ uri: post.mediaUrl }} style={styles.media} />
           )}
           <FlyingReaction triggerKey={flyKey} emoji="🔥" />
+          {post.aiMode ? (
+            <View style={[styles.aiBadge, { backgroundColor: aiModeColor(post.aiMode, colors) }]} pointerEvents="none">
+              <Text style={styles.aiBadgeText}>AI {aiModeLabel(post.aiMode).toUpperCase()}</Text>
+            </View>
+          ) : null}
+          {post.aiMode && post.aiVerdictScore !== null ? (
+            <View style={[styles.aiScoreRing, { borderColor: aiModeColor(post.aiMode, colors) }]} pointerEvents="none">
+              <Text style={[styles.aiScoreText, { color: aiModeColor(post.aiMode, colors) }]}>{post.aiVerdictScore}</Text>
+            </View>
+          ) : null}
         </View>
       </Pressable>
 
@@ -277,6 +288,28 @@ function makeStyles(colors: ThemeColors) {
     },
     media: { width: '100%', aspectRatio: 1, backgroundColor: colors.borderSoft },
     caption: { fontSize: 14, color: colors.text, lineHeight: 19 },
+    aiBadge: {
+      position: 'absolute',
+      top: 8,
+      left: 8,
+      borderRadius: RADII.pill,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+    },
+    aiBadgeText: { fontSize: 10, fontWeight: WEIGHT.bold, color: '#FFFFFF', letterSpacing: 0.3 },
+    aiScoreRing: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      borderWidth: 2.5,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    aiScoreText: { fontSize: 13, fontWeight: WEIGHT.bold },
     footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     footerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     commentButton: { flexDirection: 'row', alignItems: 'center', gap: 5 },

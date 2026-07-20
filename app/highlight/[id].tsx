@@ -1,12 +1,27 @@
 import { useEvent } from 'expo';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { Archive, ChevronLeft, Flame, MessageCircleReply, Send, Target, X } from 'lucide-react-native';
+import {
+  Archive,
+  ChevronLeft,
+  Flame,
+  MessageCircleReply,
+  Mic,
+  Pause,
+  Play,
+  Send,
+  Sparkles,
+  Target,
+  X,
+  Zap,
+} from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,21 +35,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { ON_ACCENT, RADII, SPACING, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
+import { GOLD, ON_ACCENT, RADII, SPACING, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { errorMessage } from '@/lib/error-message';
 import {
+  addHighlightComment,
   archiveHighlightClip,
   fetchHighlightClip,
+  fetchHighlightComments,
   fetchHighlightMessages,
   fetchHighlightNotes,
+  fetchHighlightReactions,
+  requestHighlightNarration,
   retryHighlightAnalysis,
   sendHighlightMessage,
   setHighlightVisibility,
+  shareHighlightToFeed,
+  toggleHighlightReaction,
   type HighlightClip,
+  type HighlightComment,
   type HighlightMessage,
+  type HighlightMode,
   type HighlightNote,
+  type HighlightReaction,
   type HighlightVisibility,
 } from '@/lib/highlights';
 
@@ -44,8 +68,54 @@ const STUCK_PENDING_MS = 25000;
 // gesture already used in Banter's chat/[id].tsx for a consistent feel.
 const SWIPE_REPLY_TRIGGER = 56;
 
+const MODE_LABEL: Record<HighlightMode, string> = {
+  roast: 'Roast',
+  hype: 'Hype man',
+  commentator: 'Commentator',
+  critique: 'Critique',
+};
+
+const MODE_ICON: Record<HighlightMode, typeof Flame> = {
+  roast: Flame,
+  hype: Zap,
+  commentator: Mic,
+  critique: Target,
+};
+
+const MODE_COLOR_KEY: Record<HighlightMode, 'coral' | 'blue' | 'gold'> = {
+  roast: 'coral',
+  hype: 'gold',
+  commentator: 'blue',
+  critique: 'blue',
+};
+
+const ROAST_REACTIONS = ['🔥', '😂', '💀', '👏'];
+
+// A few varied framing lines per persona so the default share caption reads
+// like a fun intro to the verdict instead of the raw quote sitting there
+// plain — still fully editable before posting. One is picked at random each
+// time the review sheet opens.
+const CAPTION_FRAMES: Record<HighlightMode, string[]> = {
+  roast: ['AI roasted me and I have no comeback:', 'The AI did not hold back:', 'Sent this in for a roast, regret it:'],
+  hype: ['AI hyped me up and honestly I believe it now:', 'The AI is my new biggest fan:', "AI said I'm him:"],
+  commentator: ['AI called the play like it mattered:', 'The AI commentary I did not ask for but needed:', 'Live from the AI booth:'],
+  critique: ['AI broke down my game:', 'Got a real coaching note from the AI:', 'The AI film review came in:'],
+};
+
+function randomCaptionFrame(mode: HighlightMode): string {
+  const frames = CAPTION_FRAMES[mode];
+  return frames[Math.floor(Math.random() * frames.length)];
+}
+
 export default function HighlightDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, readonly } = useLocalSearchParams<{ id: string; readonly?: string }>();
+  // Set when this screen was opened from a Feed card (a shared highlight
+  // post) rather than from Profile. In this mode the private AI chat is
+  // never shown or fetched at all — not even to the owner — and reactions
+  // happen through Feed's own scoreboard ReactionBar on the post instead of
+  // this screen's separate roast-reactions row, so there's only one
+  // reaction surface per shared clip, not two.
+  const isReadonly = readonly === '1';
   const { session } = useAuth();
   const userId = session?.user.id;
   const router = useRouter();
@@ -65,6 +135,11 @@ export default function HighlightDetailScreen() {
   const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [stuckPending, setStuckPending] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [reactions, setReactions] = useState<HighlightReaction[]>([]);
+  const [comments, setComments] = useState<HighlightComment[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [commentSending, setCommentSending] = useState(false);
+  const narrationPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -77,19 +152,37 @@ export default function HighlightDetailScreen() {
       const fetchedClip = await fetchHighlightClip(id);
       setClip(fetchedClip);
       if (fetchedClip?.status === 'ready') {
-        const [fetchedNotes, fetchedMessages] = await Promise.all([
-          fetchHighlightNotes(id),
-          fetchHighlightMessages(id),
-        ]);
+        const fetchedNotes = await fetchHighlightNotes(id);
         setNotes(fetchedNotes);
-        setMessages(fetchedMessages);
+
+        // Readonly (opened from a Feed card): never touch the private chat
+        // or the roast-reactions row at all — not even for the owner. Feed's
+        // own ReactionBar is the only reaction surface for a shared post.
+        if (!isReadonly) {
+          const fetchedMessages = await fetchHighlightMessages(id);
+          setMessages(fetchedMessages);
+          // Group roast layer only applies once the clip isn't private —
+          // RLS would reject these reads anyway, but skipping them for a
+          // private clip avoids a pointless round trip.
+          if (fetchedClip.visibility !== 'private') {
+            const [fetchedReactions, fetchedComments] = await Promise.all([
+              fetchHighlightReactions(id),
+              fetchHighlightComments(id),
+            ]);
+            setReactions(fetchedReactions);
+            setComments(fetchedComments);
+          } else {
+            setReactions([]);
+            setComments([]);
+          }
+        }
       }
     } catch (e) {
       Alert.alert('Could not load highlight', errorMessage(e));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, isReadonly]);
 
   useFocusEffect(
     useCallback(() => {
@@ -170,18 +263,123 @@ export default function HighlightDetailScreen() {
     }
   };
 
-  const handleVisibility = async (visibility: HighlightVisibility) => {
+  const handleVisibility = async (visibility: Exclude<HighlightVisibility, 'feed'>) => {
     if (!clip || !userId) return;
     setVisibilityBusy(true);
     try {
       await setHighlightVisibility(clip, visibility, userId);
       setClip({ ...clip, visibility });
-      if (visibility === 'feed') Alert.alert('Shared', 'Your clip is posted to Feed.');
-      if (visibility === 'profile') Alert.alert('Posted', 'Your clip is on your profile highlights.');
+      if (visibility === 'profile') Alert.alert('Posted', 'Friends can now react and comment on it.');
+      if (visibility !== 'private' && id) {
+        const [fetchedReactions, fetchedComments] = await Promise.all([
+          fetchHighlightReactions(id),
+          fetchHighlightComments(id),
+        ]);
+        setReactions(fetchedReactions);
+        setComments(fetchedComments);
+      }
     } catch (e) {
       Alert.alert('Could not update', errorMessage(e));
     } finally {
       setVisibilityBusy(false);
+    }
+  };
+
+  // "Share to feed" opens a review sheet instead of posting instantly — the
+  // caption starts as the AI verdict but the user can rewrite it entirely
+  // before anything actually goes out.
+  const [shareReviewOpen, setShareReviewOpen] = useState(false);
+  const [shareCaption, setShareCaption] = useState('');
+  const [sharePosting, setSharePosting] = useState(false);
+
+  const openShareReview = () => {
+    if (!clip) return;
+    const verdict = clip.verdictText ?? clip.overallText ?? '';
+    setShareCaption(verdict ? `${randomCaptionFrame(clip.mode)} "${verdict}"` : '');
+    setShareReviewOpen(true);
+  };
+
+  const handleConfirmShare = async () => {
+    if (!clip || !userId) return;
+    setSharePosting(true);
+    try {
+      await shareHighlightToFeed(clip, userId, shareCaption);
+      setClip({ ...clip, visibility: 'feed' });
+      setShareReviewOpen(false);
+      Alert.alert('Posted', 'Your highlight is live on Feed.');
+      if (id) {
+        const [fetchedReactions, fetchedComments] = await Promise.all([
+          fetchHighlightReactions(id),
+          fetchHighlightComments(id),
+        ]);
+        setReactions(fetchedReactions);
+        setComments(fetchedComments);
+      }
+    } catch (e) {
+      Alert.alert('Could not post', errorMessage(e));
+    } finally {
+      setSharePosting(false);
+    }
+  };
+
+  const handleToggleReaction = async (emoji: string) => {
+    if (!id || !userId) return;
+    const mine = reactions.some((r) => r.userId === userId && r.emoji === emoji);
+    setReactions((prev) =>
+      mine
+        ? prev.filter((r) => !(r.userId === userId && r.emoji === emoji))
+        : [...prev, { id: `local-${Date.now()}`, userId, emoji }]
+    );
+    try {
+      await toggleHighlightReaction(id, userId, emoji, !mine);
+    } catch (e) {
+      Alert.alert('Could not react', errorMessage(e));
+      load();
+    }
+  };
+
+  // Fires narration, then polls fetchHighlightClip until narrationStatus
+  // flips to 'ready'/'failed' — mirrors the pending-analysis poll above.
+  const handleNarrate = async () => {
+    if (!id) return;
+    setClip((prev) => (prev ? { ...prev, narrationStatus: 'pending' } : prev));
+    const { error } = await requestHighlightNarration(id);
+    if (error) {
+      Alert.alert('Could not generate narration', error.message);
+      setClip((prev) => (prev ? { ...prev, narrationStatus: 'failed' } : prev));
+      return;
+    }
+    if (narrationPollRef.current) clearInterval(narrationPollRef.current);
+    narrationPollRef.current = setInterval(async () => {
+      const fetched = await fetchHighlightClip(id);
+      if (fetched && fetched.narrationStatus !== 'pending') {
+        setClip(fetched);
+        if (narrationPollRef.current) {
+          clearInterval(narrationPollRef.current);
+          narrationPollRef.current = null;
+        }
+      }
+    }, 2500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (narrationPollRef.current) clearInterval(narrationPollRef.current);
+    };
+  }, []);
+
+  const handleSendComment = async () => {
+    const trimmed = commentText.trim();
+    if (!trimmed || !id || !userId) return;
+    setCommentSending(true);
+    try {
+      await addHighlightComment(id, userId, trimmed);
+      setCommentText('');
+      setComments((prev) => [...prev, { id: `local-${Date.now()}`, userId, body: trimmed, createdAt: new Date().toISOString() }]);
+    } catch (e) {
+      Alert.alert('Could not comment', errorMessage(e));
+    } finally {
+      setCommentSending(false);
     }
   };
 
@@ -218,10 +416,14 @@ export default function HighlightDetailScreen() {
         <AnimatedPressable onPress={() => router.back()} hitSlop={8}>
           <ChevronLeft size={24} color={colors.text} strokeWidth={2} />
         </AnimatedPressable>
-        <Text style={styles.headerTitle}>{clip.mode === 'roast' ? 'Roast' : 'Critique'}</Text>
-        <AnimatedPressable onPress={handleArchive} hitSlop={8}>
-          <Archive size={19} color={colors.textSecondary} strokeWidth={2} />
-        </AnimatedPressable>
+        <Text style={styles.headerTitle}>{MODE_LABEL[clip.mode]}</Text>
+        {isReadonly ? (
+          <View style={{ width: 19 }} />
+        ) : (
+          <AnimatedPressable onPress={handleArchive} hitSlop={8}>
+            <Archive size={19} color={colors.textSecondary} strokeWidth={2} />
+          </AnimatedPressable>
+        )}
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
@@ -268,7 +470,47 @@ export default function HighlightDetailScreen() {
           </View>
         ) : (
           <>
+            {clip.verdictText ? (
+              <View style={[styles.verdictCard, { backgroundColor: modeTint(clip.mode, colors) }]}>
+                {clip.verdictScore !== null ? (
+                  <Text style={[styles.verdictScore, { color: modeColor(MODE_COLOR_KEY[clip.mode], colors) }]}>
+                    {clip.verdictScore}/10
+                  </Text>
+                ) : null}
+                <Text style={styles.verdictText}>{clip.verdictText}</Text>
+              </View>
+            ) : null}
+
             <Text style={styles.overall}>{clip.overallText}</Text>
+
+            {clip.bestMomentSeconds !== null ? (
+              <AnimatedPressable style={styles.bestMomentChip} onPress={() => handleSeek(clip.bestMomentSeconds as number)}>
+                <Sparkles size={13} color={colors.textSecondary} strokeWidth={2} />
+                <Text style={styles.bestMomentText}>Jump to the best moment ({formatSeconds(clip.bestMomentSeconds)})</Text>
+              </AnimatedPressable>
+            ) : null}
+
+            {clip.narrationStatus === 'ready' && clip.narrationAudioUrl ? (
+              <NarrationPlayer uri={clip.narrationAudioUrl} colors={colors} styles={styles} />
+            ) : (
+              <AnimatedPressable
+                style={styles.narrateButton}
+                onPress={handleNarrate}
+                disabled={clip.narrationStatus === 'pending'}>
+                {clip.narrationStatus === 'pending' ? (
+                  <ActivityIndicator color={colors.textSecondary} size="small" />
+                ) : (
+                  <Mic size={14} color={colors.textSecondary} strokeWidth={2} />
+                )}
+                <Text style={styles.narrateButtonText}>
+                  {clip.narrationStatus === 'pending'
+                    ? 'Generating voice commentary...'
+                    : clip.narrationStatus === 'failed'
+                      ? 'Narration failed — try again'
+                      : 'Hear the AI say it'}
+                </Text>
+              </AnimatedPressable>
+            )}
 
             <View style={styles.notesWrap}>
               {notes.map((note) => (
@@ -277,97 +519,198 @@ export default function HighlightDetailScreen() {
                     <Text style={styles.noteTime}>{formatSeconds(note.timestampSeconds)}</Text>
                     <Text style={styles.noteText}>{note.noteText}</Text>
                   </AnimatedPressable>
-                  <AnimatedPressable hitSlop={8} onPress={() => setQuotedText(note.noteText)}>
-                    <MessageCircleReply size={16} color={colors.textSecondary} strokeWidth={2} />
-                  </AnimatedPressable>
+                  {!isReadonly ? (
+                    <AnimatedPressable hitSlop={8} onPress={() => setQuotedText(note.noteText)}>
+                      <MessageCircleReply size={16} color={colors.textSecondary} strokeWidth={2} />
+                    </AnimatedPressable>
+                  ) : null}
                 </View>
               ))}
             </View>
 
-            <Text style={styles.chatLabel}>Private chat — only you see this. Swipe an AI reply right to respond to it.</Text>
-            <View style={styles.chatWrap}>
-              {messages.map((m) =>
-                m.sender === 'ai' ? (
-                  <SwipeableAiBubble key={m.id} onSwipeReply={() => setQuotedText(m.body)}>
-                    <View style={styles.bubbleAiRow}>
-                      <View style={[styles.aiAvatar, clip.mode === 'roast' ? styles.aiAvatarRoast : styles.aiAvatarCritique]}>
-                        {clip.mode === 'roast' ? (
-                          <Flame size={12} color={colors.coral} strokeWidth={2} />
-                        ) : (
-                          <Target size={12} color={colors.blue} strokeWidth={2} />
-                        )}
+            {!isReadonly ? (
+              <>
+                <Text style={styles.chatLabel}>Private chat — only you see this. Swipe an AI reply right to respond to it.</Text>
+                <View style={styles.chatWrap}>
+                  {messages.map((m) =>
+                    m.sender === 'ai' ? (
+                      <SwipeableAiBubble key={m.id} onSwipeReply={() => setQuotedText(m.body)}>
+                        <View style={styles.bubbleAiRow}>
+                          <View style={[styles.aiAvatar, { backgroundColor: modeTint(clip.mode, colors) }]}>
+                            {(() => {
+                              const ModeIcon = MODE_ICON[clip.mode];
+                              return <ModeIcon size={12} color={modeColor(MODE_COLOR_KEY[clip.mode], colors)} strokeWidth={2} />;
+                            })()}
+                          </View>
+                          <View style={[styles.bubble, styles.bubbleAi, { backgroundColor: modeTint(clip.mode, colors) }]}>
+                            <Text style={styles.bubbleText}>{m.body}</Text>
+                          </View>
+                        </View>
+                      </SwipeableAiBubble>
+                    ) : (
+                      <View key={m.id} style={[styles.bubble, styles.bubbleUser]}>
+                        <Text style={[styles.bubbleText, styles.bubbleTextUser]}>{m.body}</Text>
                       </View>
-                      <View
-                        style={[
-                          styles.bubble,
-                          styles.bubbleAi,
-                          clip.mode === 'roast' ? styles.bubbleAiRoast : styles.bubbleAiCritique,
-                        ]}>
-                        <Text style={styles.bubbleText}>{m.body}</Text>
-                      </View>
-                    </View>
-                  </SwipeableAiBubble>
-                ) : (
-                  <View key={m.id} style={[styles.bubble, styles.bubbleUser]}>
-                    <Text style={[styles.bubbleText, styles.bubbleTextUser]}>{m.body}</Text>
+                    )
+                  )}
+                </View>
+                {quotedText ? (
+                  <View style={styles.quoteChip}>
+                    <Text style={styles.quoteChipText} numberOfLines={1}>
+                      Replying to: {quotedText}
+                    </Text>
+                    <AnimatedPressable hitSlop={8} onPress={() => setQuotedText(null)}>
+                      <X size={14} color={colors.textSecondary} strokeWidth={2} />
+                    </AnimatedPressable>
                   </View>
-                )
-              )}
-            </View>
-            {quotedText ? (
-              <View style={styles.quoteChip}>
-                <Text style={styles.quoteChipText} numberOfLines={1}>
-                  Replying to: {quotedText}
-                </Text>
-                <AnimatedPressable hitSlop={8} onPress={() => setQuotedText(null)}>
-                  <X size={14} color={colors.textSecondary} strokeWidth={2} />
-                </AnimatedPressable>
+                ) : null}
+                <View style={styles.composer}>
+                  <TextInput
+                    style={styles.composerInput}
+                    placeholder={quotedText ? 'Reply to this...' : 'Ask a follow-up...'}
+                    placeholderTextColor={colors.textSecondary}
+                    value={messageText}
+                    onChangeText={setMessageText}
+                    maxLength={500}
+                  />
+                  <AnimatedPressable style={styles.sendButton} onPress={handleSend} disabled={sending || !messageText.trim()}>
+                    {sending ? <ActivityIndicator color={ON_ACCENT} size="small" /> : <Send size={16} color={ON_ACCENT} />}
+                  </AnimatedPressable>
+                </View>
+
+                <View style={styles.shareRow}>
+                  <AnimatedPressable
+                    style={[styles.shareButton, clip.visibility === 'private' && styles.shareButtonActive]}
+                    onPress={() => handleVisibility('private')}
+                    disabled={visibilityBusy}>
+                    <Text style={[styles.shareButtonText, clip.visibility === 'private' && styles.shareButtonTextActive]}>
+                      Keep private
+                    </Text>
+                  </AnimatedPressable>
+                  <AnimatedPressable
+                    style={[styles.shareButton, clip.visibility === 'profile' && styles.shareButtonActive]}
+                    onPress={() => handleVisibility('profile')}
+                    disabled={visibilityBusy}>
+                    <Text style={[styles.shareButtonText, clip.visibility === 'profile' && styles.shareButtonTextActive]}>
+                      Post to profile
+                    </Text>
+                  </AnimatedPressable>
+                  <AnimatedPressable
+                    style={[styles.shareButton, clip.visibility === 'feed' && styles.shareButtonActive]}
+                    onPress={openShareReview}
+                    disabled={visibilityBusy}>
+                    <Text style={[styles.shareButtonText, clip.visibility === 'feed' && styles.shareButtonTextActive]}>
+                      Share to feed
+                    </Text>
+                  </AnimatedPressable>
+                </View>
+              </>
+            ) : null}
+
+            {clip.visibility !== 'private' && !isReadonly ? (
+              <View style={styles.roastWrap}>
+                <Text style={styles.chatLabel}>Friends can react and roast this too</Text>
+                <View style={styles.roastReactionRow}>
+                  {ROAST_REACTIONS.map((emoji) => {
+                    const count = reactions.filter((r) => r.emoji === emoji).length;
+                    const mine = userId ? reactions.some((r) => r.userId === userId && r.emoji === emoji) : false;
+                    return (
+                      <AnimatedPressable
+                        key={emoji}
+                        style={[styles.roastReactionPill, mine && styles.roastReactionPillActive]}
+                        onPress={() => handleToggleReaction(emoji)}>
+                        <Text style={styles.roastReactionEmoji}>{emoji}</Text>
+                        {count > 0 ? <Text style={styles.roastReactionCount}>{count}</Text> : null}
+                      </AnimatedPressable>
+                    );
+                  })}
+                </View>
+
+                {comments.length > 0 ? (
+                  <View style={styles.roastCommentsWrap}>
+                    {comments.map((c) => (
+                      <View key={c.id} style={styles.roastCommentBubble}>
+                        <Text style={styles.bubbleText}>{c.body}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                <View style={styles.composer}>
+                  <TextInput
+                    style={styles.composerInput}
+                    placeholder="Add a comment..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    maxLength={500}
+                  />
+                  <AnimatedPressable
+                    style={styles.sendButton}
+                    onPress={handleSendComment}
+                    disabled={commentSending || !commentText.trim()}>
+                    {commentSending ? <ActivityIndicator color={ON_ACCENT} size="small" /> : <Send size={16} color={ON_ACCENT} />}
+                  </AnimatedPressable>
+                </View>
               </View>
             ) : null}
-            <View style={styles.composer}>
-              <TextInput
-                style={styles.composerInput}
-                placeholder={quotedText ? 'Reply to this...' : 'Ask a follow-up...'}
-                placeholderTextColor={colors.textSecondary}
-                value={messageText}
-                onChangeText={setMessageText}
-                maxLength={500}
-              />
-              <AnimatedPressable style={styles.sendButton} onPress={handleSend} disabled={sending || !messageText.trim()}>
-                {sending ? <ActivityIndicator color={ON_ACCENT} size="small" /> : <Send size={16} color={ON_ACCENT} />}
-              </AnimatedPressable>
-            </View>
-
-            <View style={styles.shareRow}>
-              <AnimatedPressable
-                style={[styles.shareButton, clip.visibility === 'private' && styles.shareButtonActive]}
-                onPress={() => handleVisibility('private')}
-                disabled={visibilityBusy}>
-                <Text style={[styles.shareButtonText, clip.visibility === 'private' && styles.shareButtonTextActive]}>
-                  Keep private
-                </Text>
-              </AnimatedPressable>
-              <AnimatedPressable
-                style={[styles.shareButton, clip.visibility === 'profile' && styles.shareButtonActive]}
-                onPress={() => handleVisibility('profile')}
-                disabled={visibilityBusy}>
-                <Text style={[styles.shareButtonText, clip.visibility === 'profile' && styles.shareButtonTextActive]}>
-                  Post to profile
-                </Text>
-              </AnimatedPressable>
-              <AnimatedPressable
-                style={[styles.shareButton, clip.visibility === 'feed' && styles.shareButtonActive]}
-                onPress={() => handleVisibility('feed')}
-                disabled={visibilityBusy}>
-                <Text style={[styles.shareButtonText, clip.visibility === 'feed' && styles.shareButtonTextActive]}>
-                  Share to feed
-                </Text>
-              </AnimatedPressable>
-            </View>
           </>
         )}
       </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={shareReviewOpen} animationType="slide" transparent onRequestClose={() => setShareReviewOpen(false)}>
+        <View style={styles.reviewBackdrop}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.reviewSheet}>
+              <View style={styles.reviewHeaderRow}>
+                <Text style={styles.reviewTitle}>Review before posting</Text>
+                <AnimatedPressable hitSlop={8} onPress={() => setShareReviewOpen(false)}>
+                  <X size={18} color={colors.textSecondary} strokeWidth={2} />
+                </AnimatedPressable>
+              </View>
+
+              {clip.status === 'ready' ? (
+                <View style={[styles.reviewCard, { borderColor: modeColor(MODE_COLOR_KEY[clip.mode], colors) }]}>
+                  <View style={styles.reviewCardHeader}>
+                    <View style={[styles.reviewBadge, { backgroundColor: modeTint(clip.mode, colors) }]}>
+                      <Text style={[styles.reviewBadgeText, { color: modeColor(MODE_COLOR_KEY[clip.mode], colors) }]}>
+                        AI {MODE_LABEL[clip.mode].toUpperCase()}
+                      </Text>
+                    </View>
+                    {clip.verdictScore !== null ? (
+                      <View style={[styles.reviewScoreRing, { borderColor: modeColor(MODE_COLOR_KEY[clip.mode], colors) }]}>
+                        <Text style={[styles.reviewScoreText, { color: modeColor(MODE_COLOR_KEY[clip.mode], colors) }]}>
+                          {clip.verdictScore}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <TextInput
+                    style={styles.reviewCaptionInput}
+                    value={shareCaption}
+                    onChangeText={setShareCaption}
+                    placeholder="Write a caption..."
+                    placeholderTextColor={colors.textSecondary}
+                    multiline
+                    maxLength={200}
+                  />
+                </View>
+              ) : null}
+
+              <Text style={styles.reviewHint}>This is exactly what your friends will see on Feed — edit it however you want.</Text>
+
+              <AnimatedPressable style={styles.reviewPostButton} onPress={handleConfirmShare} disabled={sharePosting}>
+                {sharePosting ? (
+                  <ActivityIndicator color={ON_ACCENT} size="small" />
+                ) : (
+                  <Text style={styles.reviewPostButtonText}>Post to Feed</Text>
+                )}
+              </AnimatedPressable>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -405,6 +748,58 @@ function SwipeableAiBubble({ children, onSwipeReply }: { children: ReactNode; on
       <Animated.View style={animatedStyle}>{children}</Animated.View>
     </GestureDetector>
   );
+}
+
+/** Tap-to-play/pause bar for the generated narration track — same play/pause
+ * pattern as Banter's voice notes (expo-audio's useAudioPlayer/status). */
+function NarrationPlayer({
+  uri,
+  colors,
+  styles,
+}: {
+  uri: string;
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const player = useAudioPlayer(uri);
+  const status = useAudioPlayerStatus(player);
+
+  // Replayable every time, not just once: once a track finishes,
+  // status.playing goes false and currentTime sits at the end — pressing
+  // play again would otherwise do nothing (already "at the end"). Seeking
+  // back to 0 first whenever it's not currently playing and has reached
+  // (or is very near) the end makes every tap a full replay.
+  const handlePress = async () => {
+    if (status.playing) {
+      player.pause();
+      return;
+    }
+    if (status.duration > 0 && status.currentTime >= status.duration - 0.15) {
+      await player.seekTo(0);
+    }
+    player.play();
+  };
+
+  return (
+    <AnimatedPressable style={styles.narrateButton} onPress={handlePress}>
+      {status.playing ? (
+        <Pause size={14} color={colors.textSecondary} strokeWidth={2} />
+      ) : (
+        <Play size={14} color={colors.textSecondary} strokeWidth={2} />
+      )}
+      <Text style={styles.narrateButtonText}>
+        {status.playing ? 'Playing commentary...' : status.currentTime > 0 ? 'Play again' : 'Play voice commentary'}
+      </Text>
+    </AnimatedPressable>
+  );
+}
+
+function modeColor(key: 'coral' | 'blue' | 'gold', colors: ThemeColors): string {
+  return key === 'gold' ? GOLD : colors[key];
+}
+
+function modeTint(mode: HighlightMode, colors: ThemeColors): string {
+  return modeColor(MODE_COLOR_KEY[mode], colors) + '18';
 }
 
 function formatSeconds(s: number): string {
@@ -527,5 +922,91 @@ function makeStyles(colors: ThemeColors) {
     shareButtonActive: { backgroundColor: colors.coral, borderColor: colors.coral },
     shareButtonText: { fontSize: TYPE.caption, fontWeight: WEIGHT.semibold, color: colors.text },
     shareButtonTextActive: { color: ON_ACCENT },
+    verdictCard: { borderRadius: RADII.lg, padding: 14, marginTop: SPACING.lg, gap: 4 },
+    verdictScore: { fontSize: TYPE.title, fontWeight: WEIGHT.bold },
+    verdictText: { fontSize: TYPE.body, fontWeight: WEIGHT.semibold, color: colors.text, lineHeight: 21 },
+    bestMomentChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      alignSelf: 'flex-start',
+      marginTop: 8,
+    },
+    bestMomentText: { fontSize: TYPE.caption, color: colors.textSecondary, fontWeight: WEIGHT.semibold },
+    narrateButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      alignSelf: 'flex-start',
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.pill,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+    },
+    narrateButtonText: { fontSize: TYPE.caption, color: colors.textSecondary, fontWeight: WEIGHT.semibold },
+    roastWrap: { marginTop: SPACING.xl, gap: 8 },
+    roastReactionRow: { flexDirection: 'row', gap: 8 },
+    roastReactionPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: RADII.pill,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+    },
+    roastReactionPillActive: { backgroundColor: colors.coral + '18', borderColor: colors.coral },
+    roastReactionEmoji: { fontSize: TYPE.body },
+    roastReactionCount: { fontSize: TYPE.caption, fontWeight: WEIGHT.semibold, color: colors.textSecondary },
+    roastCommentsWrap: { gap: 6 },
+    roastCommentBubble: {
+      alignSelf: 'flex-start',
+      maxWidth: '85%',
+      backgroundColor: colors.border,
+      borderRadius: RADII.lg,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    reviewBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+    reviewSheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: RADII.lg,
+      borderTopRightRadius: RADII.lg,
+      padding: SPACING.xl,
+      paddingBottom: 32,
+      gap: 12,
+    },
+    reviewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    reviewTitle: { fontSize: TYPE.subtitle, fontWeight: WEIGHT.bold, color: colors.text },
+    reviewCard: { borderWidth: 1.5, borderRadius: RADII.lg, padding: 14, gap: 10 },
+    reviewCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    reviewBadge: { borderRadius: RADII.pill, paddingHorizontal: 10, paddingVertical: 4 },
+    reviewBadgeText: { fontSize: TYPE.caption, fontWeight: WEIGHT.bold, letterSpacing: 0.3 },
+    reviewScoreRing: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    reviewScoreText: { fontSize: TYPE.label, fontWeight: WEIGHT.bold },
+    reviewCaptionInput: {
+      fontSize: TYPE.body,
+      color: colors.text,
+      minHeight: 60,
+      textAlignVertical: 'top',
+    },
+    reviewHint: { fontSize: TYPE.caption, color: colors.textSecondary },
+    reviewPostButton: {
+      backgroundColor: colors.coral,
+      borderRadius: RADII.md,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    reviewPostButtonText: { color: ON_ACCENT, fontWeight: WEIGHT.semibold, fontSize: TYPE.body },
   });
 }

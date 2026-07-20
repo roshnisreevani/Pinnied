@@ -257,7 +257,11 @@ export function DiscoverCarousel({
             streak={streak}
             onToggleReaction={(type) => onToggleReaction(activeItem.post.id, type)}
             onOpenComments={() => onOpenComments(activeItem.post.id)}
-            onOpenPost={() => router.push(`/post/${activeItem.post.id}`)}
+            onOpenPost={() =>
+              activeItem.post.highlightClipId
+                ? router.push(`/highlight/${activeItem.post.highlightClipId}?readonly=1`)
+                : router.push(`/post/${activeItem.post.id}`)
+            }
             onDelete={() => onDeletePost(activeItem.post)}
             onReport={(reason) => onReportPost(activeItem.post, reason)}
             onBlock={() => onBlockPost(activeItem.post)}

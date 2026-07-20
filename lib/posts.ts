@@ -36,6 +36,13 @@ export type Post = {
   // Self-rating (1–5) set by the author at post time. Null = not rated.
   // The app hides this from the author themselves — everyone else sees it.
   selfRating: number | null;
+  // Set when this post came from sharing an AI highlight clip to Feed —
+  // drives the "trading card" rendering (persona badge + score ring) on
+  // PostCard/SessionPostCard and lets the card deep-link back to the full
+  // highlight. Null for a normal post.
+  aiMode: string | null;
+  aiVerdictScore: number | null;
+  highlightClipId: string | null;
 };
 
 export type Comment = {
@@ -67,6 +74,9 @@ type PostRow = {
   archived_at: string | null;
   reshared_from_author_name: string | null;
   self_rating: number | null;
+  ai_mode: string | null;
+  ai_verdict_score: number | null;
+  highlight_clip_id: string | null;
   author: { name: string | null; avatar_url: string | null } | null;
   reactions: ReactionRow[] | null;
   comments: CommentCountRow[] | null;
@@ -107,6 +117,9 @@ function rowToPost(row: PostRow, currentUserId: string | undefined): Post {
     commentCount: row.comments?.[0]?.count ?? 0,
     resharedFromAuthorName: row.reshared_from_author_name,
     selfRating: row.self_rating ?? null,
+    aiMode: row.ai_mode ?? null,
+    aiVerdictScore: row.ai_verdict_score ?? null,
+    highlightClipId: row.highlight_clip_id ?? null,
   };
 }
 

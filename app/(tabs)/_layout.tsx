@@ -40,7 +40,10 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.coral,
+        // Per-tab active color (set per Tabs.Screen below) rather than one
+        // fixed tint for every tab — alternates navy/brick left-to-right
+        // around the center "+" button so the active tab bar icon isn't
+        // always the same color regardless of which tab you're actually on.
         tabBarInactiveTintColor: colors.textSecondary,
         headerShown: false,
         tabBarButton: HapticTab,
@@ -54,6 +57,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'My Locker',
+          tabBarActiveTintColor: colors.blue,
           tabBarIcon: ({ color }) => <User size={24} color={color} strokeWidth={1.75} />,
         }}
       />
@@ -61,6 +65,7 @@ export default function TabLayout() {
         name="groups"
         options={{
           title: 'Teams',
+          tabBarActiveTintColor: colors.coral,
           tabBarIcon: ({ color }) => <Users size={24} color={color} strokeWidth={1.75} />,
         }}
       />
@@ -68,6 +73,10 @@ export default function TabLayout() {
         name="create-post-tab"
         options={{
           title: '',
+          // Never actually the focused route (see the tabPress override
+          // below), so its active-vs-inactive color barely matters — kept
+          // as the brick accent since it's the primary call-to-action.
+          tabBarActiveTintColor: colors.coral,
           tabBarIcon: ({ color }) => <CirclePlus size={28} color={color} strokeWidth={1.75} />,
         }}
         listeners={{
@@ -83,6 +92,7 @@ export default function TabLayout() {
         name="feed"
         options={{
           title: 'Scoreboard',
+          tabBarActiveTintColor: colors.blue,
           tabBarIcon: ({ color }) => <Images size={24} color={color} strokeWidth={1.75} />,
         }}
       />
@@ -90,6 +100,7 @@ export default function TabLayout() {
         name="banter"
         options={{
           title: 'Banter',
+          tabBarActiveTintColor: colors.coral,
           tabBarIcon: ({ color }) => <MessageSquare size={24} color={color} strokeWidth={1.75} />,
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.coral },

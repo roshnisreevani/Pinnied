@@ -312,7 +312,11 @@ export function FeedCarousel({
                 streak={streak}
                 onToggleReaction={(type) => onToggleReaction(activePost.id, type)}
                 onOpenComments={() => onOpenComments(activePost.id)}
-                onOpenPost={() => router.push(`/post/${activePost.id}`)}
+                onOpenPost={() =>
+                  activePost.highlightClipId
+                    ? router.push(`/highlight/${activePost.highlightClipId}?readonly=1`)
+                    : router.push(`/post/${activePost.id}`)
+                }
                 onDelete={() => onDelete(activePost)}
                 onReport={(reason) => onReport(activePost, reason)}
                 onBlock={() => onBlock(activePost)}

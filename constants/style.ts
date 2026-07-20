@@ -1,7 +1,11 @@
-// The Rec's brand style — clean, neutral, one accent color used sparingly.
-// Applies to Profile, Settings, and Auth. Light/dark values live here;
-// components read the active palette via useThemeColors() rather than a
-// static import, so everything reacts to the Dark Mode toggle in Settings.
+// The Rec's brand style — "Varsity Jacket": navy + brick red on a warm
+// cream/near-navy neutral, replacing the earlier stark white/black +
+// primary red/blue combo. Chosen to read like an old gym or a letterman
+// jacket — nostalgic, friend-group, casual — rather than a scoreboard/tech
+// app, per the app's own "not ESPN" framing. Applies to Profile, Settings,
+// and Auth. Light/dark values live here; components read the active
+// palette via useThemeColors() rather than a static import, so everything
+// reacts to the Dark Mode toggle in Settings.
 
 export type ThemeColors = {
   background: string; // page/card surface color
@@ -9,33 +13,34 @@ export type ThemeColors = {
   textSecondary: string; // secondary/quiet text
   border: string; // hairline borders, dividers
   borderSoft: string; // even quieter dividers (e.g. row separators)
-  coral: string; // primary accent ("red") — buttons, active states, highlights,
-  // high-energy elements like the 🔥 reaction and "HOT" badges
-  blue: string; // secondary accent — informational/connection elements: links,
-  // comment counts, the "no way" reaction, anything connections-related
+  coral: string; // primary accent ("red", brick) — buttons, active states,
+  // highlights, high-energy elements like the 🔥 reaction and "HOT" badges
+  blue: string; // secondary accent ("blue", navy) — informational/connection
+  // elements: links, comment counts, the "no way" reaction, anything
+  // connections-related
   danger: string; // destructive actions
 };
 
 export const LIGHT_COLORS: ThemeColors = {
-  background: '#FFFFFF',
-  text: '#14141A',
+  background: '#F7F3EA',
+  text: '#1F2430',
   textSecondary: '#8A8578',
-  border: '#DEDCD6',
-  borderSoft: '#EEEDEA',
-  coral: '#E31C24',
-  blue: '#3D5AFE',
-  danger: '#D92626',
+  border: '#E4DFD2',
+  borderSoft: '#EEEAD9',
+  coral: '#A3352B',
+  blue: '#1C2340',
+  danger: '#8F2A22',
 };
 
 export const DARK_COLORS: ThemeColors = {
-  background: '#000000',
-  text: '#FFFFFF',
-  textSecondary: '#8A8A8A',
-  border: '#2A2A2A',
-  borderSoft: '#3A3A3A',
-  coral: '#E31C24',
-  blue: '#3D5AFE',
-  danger: '#FF6B5E',
+  background: '#12141F',
+  text: '#F2EFE6',
+  textSecondary: '#9A9284',
+  border: '#2A2C36',
+  borderSoft: '#242631',
+  coral: '#C1503F',
+  blue: '#4A5FA0',
+  danger: '#E2645A',
 };
 
 export const WEIGHT = {
@@ -90,10 +95,11 @@ export const TYPE = {
 
 export const HAIRLINE = 1;
 
-// Coral doesn't change between themes, so text/icons drawn on top of a
-// coral-filled element (buttons, the pulsing play button, etc.) should
-// always be this fixed white — not the theme's `background`, which flips
-// to black in dark mode and would otherwise land black-on-coral there.
+// White reads legibly on both light and dark coral (and on navy blue), so
+// text/icons drawn on top of an accent-filled element (buttons, the pulsing
+// play button, etc.) always use this fixed white — not the theme's
+// `background`, which flips to near-navy-black in dark mode and would
+// otherwise land wrong-on-accent there.
 export const ON_ACCENT = '#FFFFFF';
 
 // Fixed gold used for "legendary"/standout highlights (the Trophy Case's
@@ -101,11 +107,13 @@ export const ON_ACCENT = '#FFFFFF';
 // for the same reason as ON_ACCENT above.
 export const GOLD = '#D4AF37';
 
-// Fixed near-black "locker room" surface used by Feed's session headers,
-// transition cards, and end-of-feed card — these are deliberately dark in
-// both light and dark mode (a consistent "tunnel" break between sessions),
-// so like ON_ACCENT/GOLD this doesn't come from the theme palette.
-export const DARK_SURFACE = '#14141A';
+// Fixed near-navy-black "locker room" surface used by Feed's session
+// headers, transition cards, and end-of-feed card — these are deliberately
+// dark in both light and dark mode (a consistent "tunnel" break between
+// sessions), so like ON_ACCENT/GOLD this doesn't come from the theme
+// palette. Tinted navy rather than flat black to tie into the Varsity
+// Jacket palette's navy accent.
+export const DARK_SURFACE = '#161A2C';
 export const ON_DARK_SURFACE = '#FFFFFF';
 export const ON_DARK_SURFACE_SECONDARY = '#9A968C';
 

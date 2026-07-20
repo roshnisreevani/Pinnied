@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { ChevronLeft, Flame, Pencil, Target, Video } from 'lucide-react-native';
+import { ChevronLeft, Flame, Mic, Pencil, Target, Video, Zap } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
-import { ON_ACCENT, RADII, SPACING, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
+import { GOLD, ON_ACCENT, RADII, SPACING, TYPE, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useAuth } from '@/contexts/auth-context';
 import { useThemeColors } from '@/contexts/theme-context';
 import { errorMessage } from '@/lib/error-message';
@@ -29,6 +29,17 @@ const SELF_SKILL_LABELS: Record<SkillLevel, string> = {
   all: 'Somewhere in between',
   competitive: 'Competitive',
 };
+
+const MODE_META: Record<HighlightMode, { label: string; hint: string; icon: typeof Flame; colorKey: 'coral' | 'blue' | 'gold' }> = {
+  roast: { label: 'Roast', hint: 'Funny, no mercy', icon: Flame, colorKey: 'coral' },
+  hype: { label: 'Hype man', hint: 'Delusionally proud', icon: Zap, colorKey: 'gold' },
+  commentator: { label: 'Commentator', hint: 'Play-by-play drama', icon: Mic, colorKey: 'blue' },
+  critique: { label: 'Critique me', hint: 'Real notes, your level', icon: Target, colorKey: 'blue' },
+};
+
+function modeColor(key: 'coral' | 'blue' | 'gold', colors: ThemeColors): string {
+  return key === 'gold' ? GOLD : colors[key];
+}
 
 /**
  * Shows the actual picked clip, paused on its first frame, as a real
@@ -114,22 +125,23 @@ export default function CreateHighlightScreen() {
           </AnimatedPressable>
         )}
 
-        <Text style={styles.sectionTitle}>Mode</Text>
+        <Text style={styles.sectionTitle}>Persona</Text>
         <View style={styles.modeRow}>
-          <AnimatedPressable
-            style={[styles.modeCard, mode === 'roast' && styles.modeCardSelected]}
-            onPress={() => setMode('roast')}>
-            <Flame size={18} color={mode === 'roast' ? colors.coral : colors.textSecondary} strokeWidth={2} />
-            <Text style={[styles.modeLabel, mode === 'roast' && styles.modeLabelSelected]}>Roast</Text>
-            <Text style={styles.modeHint}>Funny, no mercy</Text>
-          </AnimatedPressable>
-          <AnimatedPressable
-            style={[styles.modeCard, mode === 'critique' && styles.modeCardSelected]}
-            onPress={() => setMode('critique')}>
-            <Target size={18} color={mode === 'critique' ? colors.blue : colors.textSecondary} strokeWidth={2} />
-            <Text style={[styles.modeLabel, mode === 'critique' && styles.modeLabelSelected]}>Critique me</Text>
-            <Text style={styles.modeHint}>Real notes, your level</Text>
-          </AnimatedPressable>
+          {(Object.keys(MODE_META) as HighlightMode[]).map((key) => {
+            const meta = MODE_META[key];
+            const Icon = meta.icon;
+            const selected = mode === key;
+            return (
+              <AnimatedPressable
+                key={key}
+                style={[styles.modeCard, selected && styles.modeCardSelected]}
+                onPress={() => setMode(key)}>
+                <Icon size={18} color={selected ? modeColor(meta.colorKey, colors) : colors.textSecondary} strokeWidth={2} />
+                <Text style={[styles.modeLabel, selected && styles.modeLabelSelected]}>{meta.label}</Text>
+                <Text style={styles.modeHint}>{meta.hint}</Text>
+              </AnimatedPressable>
+            );
+          })}
         </View>
 
         {mode === 'critique' ? (
@@ -158,8 +170,6 @@ export default function CreateHighlightScreen() {
           value={sport}
           onChangeText={setSport}
         />
-
-        <Text style={styles.freeNote}>2 free clips a day.</Text>
 
         <AnimatedPressable style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
           {submitting ? (
@@ -234,9 +244,10 @@ function makeStyles(colors: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    modeRow: { flexDirection: 'row', gap: 8 },
+    modeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     modeCard: {
-      flex: 1,
+      flexBasis: '47%',
+      flexGrow: 1,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: RADII.md,
@@ -268,7 +279,6 @@ function makeStyles(colors: ThemeColors) {
       color: colors.text,
       backgroundColor: colors.background,
     },
-    freeNote: { fontSize: TYPE.caption, color: colors.textSecondary, marginTop: SPACING.md, textAlign: 'center' },
     submitButton: {
       backgroundColor: colors.coral,
       borderRadius: RADII.md,

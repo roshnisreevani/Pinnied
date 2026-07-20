@@ -2,9 +2,13 @@ import type { SkillLevel } from '@/lib/open-games';
 import { supabase } from '@/lib/supabase';
 import { uploadHighlightClipVideo } from '@/lib/upload-photo';
 
-export type HighlightMode = 'roast' | 'critique';
+// 'roast' and 'critique' are the original two personas; 'hype' and
+// 'commentator' were added alongside verdict_score/verdict_text to make the
+// AI feel like a personality instead of a neutral analysis tool.
+export type HighlightMode = 'roast' | 'critique' | 'hype' | 'commentator';
 export type HighlightStatus = 'pending' | 'ready' | 'failed';
 export type HighlightVisibility = 'private' | 'profile' | 'feed';
+export type NarrationStatus = 'none' | 'pending' | 'ready' | 'failed';
 
 export type HighlightClip = {
   id: string;
@@ -14,6 +18,11 @@ export type HighlightClip = {
   skillLevel: SkillLevel | null;
   videoUrl: string;
   overallText: string | null;
+  verdictScore: number | null;
+  verdictText: string | null;
+  bestMomentSeconds: number | null;
+  narrationStatus: NarrationStatus;
+  narrationAudioUrl: string | null;
   status: HighlightStatus;
   errorMessage: string | null;
   visibility: HighlightVisibility;
@@ -42,6 +51,11 @@ type ClipRow = {
   skill_level: SkillLevel | null;
   video_url: string;
   overall_text: string | null;
+  verdict_score: number | null;
+  verdict_text: string | null;
+  best_moment_seconds: number | null;
+  narration_status: NarrationStatus;
+  narration_audio_url: string | null;
   status: HighlightStatus;
   error_message: string | null;
   visibility: HighlightVisibility;
@@ -58,6 +72,11 @@ function rowToClip(row: ClipRow): HighlightClip {
     skillLevel: row.skill_level,
     videoUrl: row.video_url,
     overallText: row.overall_text,
+    verdictScore: row.verdict_score,
+    verdictText: row.verdict_text,
+    bestMomentSeconds: row.best_moment_seconds,
+    narrationStatus: row.narration_status,
+    narrationAudioUrl: row.narration_audio_url,
     status: row.status,
     errorMessage: row.error_message,
     visibility: row.visibility,
@@ -67,7 +86,7 @@ function rowToClip(row: ClipRow): HighlightClip {
 }
 
 const CLIP_SELECT =
-  'id, user_id, mode, sport, skill_level, video_url, overall_text, status, error_message, visibility, created_at, archived_at';
+  'id, user_id, mode, sport, skill_level, video_url, overall_text, verdict_score, verdict_text, best_moment_seconds, narration_status, narration_audio_url, status, error_message, visibility, created_at, archived_at';
 
 /**
  * Uploads the clip and creates its row (status 'pending'), then fires the
@@ -110,6 +129,19 @@ export function retryHighlightAnalysis(clipId: string): Promise<{ error: Error |
   return supabase.functions.invoke('analyze-highlight-clip', { body: { clipId } }).then(
     ({ error }) => ({ error: error ? new Error(error.message) : null }),
     (e) => ({ error: e instanceof Error ? e : new Error('Could not start analysis') })
+  );
+}
+
+/**
+ * User-triggered voice narration — turns the clip's persona commentary into
+ * a short AI-voiced audio track. Fires the Edge Function and returns
+ * immediately; caller polls fetchHighlightClip for narrationStatus to flip
+ * to 'ready' (or 'failed'), same async pattern as the main analysis.
+ */
+export function requestHighlightNarration(clipId: string): Promise<{ error: Error | null }> {
+  return supabase.functions.invoke('narrate-highlight-clip', { body: { clipId } }).then(
+    ({ error }) => ({ error: error ? new Error(error.message) : null }),
+    (e) => ({ error: e instanceof Error ? e : new Error('Could not start narration') })
   );
 }
 
@@ -194,44 +226,109 @@ export async function sendHighlightMessage(clipId: string, message: string, quot
   return (data as { reply: string }).reply;
 }
 
-/**
- * Keep-private / post-to-profile / share-to-feed. Sharing to feed creates a
- * real posts row (video only — the AI critique/roast never leaves this
- * table) and remembers the resulting post id so it isn't double-posted.
- */
+/** Keep-private / post-to-profile. Feed sharing goes through shareHighlightToFeed instead — it needs a user-reviewed caption, not just a visibility flip. */
 export async function setHighlightVisibility(
   clip: HighlightClip,
-  visibility: HighlightVisibility,
-  authorId: string
+  visibility: Exclude<HighlightVisibility, 'feed'>,
+  _authorId: string
 ): Promise<void> {
-  if (visibility === 'feed' && clip.visibility !== 'feed') {
-    const { data: post, error: postError } = await supabase
-      .from('posts')
-      .insert({
-        author_id: authorId,
-        group_id: null,
-        sport_tag: clip.sport,
-        caption: clip.mode === 'roast' ? 'Roasted 🔥' : 'Getting critiqued 🎯',
-        media_url: clip.videoUrl,
-        media_type: 'video',
-      })
-      .select('id')
-      .single();
-    if (postError) throw postError;
-
-    const { error } = await supabase
-      .from('highlight_clips')
-      .update({ visibility, shared_post_id: (post as { id: string }).id })
-      .eq('id', clip.id);
-    if (error) throw error;
-    return;
-  }
-
   const { error } = await supabase.from('highlight_clips').update({ visibility }).eq('id', clip.id);
+  if (error) throw error;
+}
+
+/**
+ * Posts a highlight to Feed as a "trading card" post — the caption is
+ * whatever the user reviewed/edited (defaults to the AI verdict, but they
+ * can rewrite it entirely before this is ever called), and the post carries
+ * ai_mode/ai_verdict_score/highlight_clip_id so PostCard/SessionPostCard can
+ * render the card treatment and deep-link back to the full highlight.
+ * Optionally scopes the post to a specific group's feed via groupId.
+ */
+export async function shareHighlightToFeed(
+  clip: HighlightClip,
+  authorId: string,
+  caption: string,
+  groupId?: string | null
+): Promise<void> {
+  const { data: post, error: postError } = await supabase
+    .from('posts')
+    .insert({
+      author_id: authorId,
+      group_id: groupId ?? null,
+      sport_tag: clip.sport,
+      caption: caption.trim() || (clip.verdictText ?? clip.overallText ?? 'Check this out'),
+      media_url: clip.videoUrl,
+      media_type: 'video',
+      ai_mode: clip.mode,
+      ai_verdict_score: clip.verdictScore,
+      highlight_clip_id: clip.id,
+    })
+    .select('id')
+    .single();
+  if (postError) throw postError;
+
+  const { error } = await supabase
+    .from('highlight_clips')
+    .update({ visibility: 'feed', shared_post_id: (post as { id: string }).id })
+    .eq('id', clip.id);
   if (error) throw error;
 }
 
 export async function deleteHighlightClip(clipId: string): Promise<void> {
   const { error } = await supabase.from('highlight_clips').delete().eq('id', clipId);
+  if (error) throw error;
+}
+
+/**
+ * "Group roast" layer — reactions + comments on a highlight itself, separate
+ * from the owner's private AI chat. RLS (can_engage_with_highlight) only
+ * allows this once the clip's visibility is 'profile' or 'feed', so a
+ * private clip stays private.
+ */
+export type HighlightReaction = { id: string; userId: string; emoji: string };
+export type HighlightComment = { id: string; userId: string; body: string; createdAt: string };
+
+export async function fetchHighlightReactions(clipId: string): Promise<HighlightReaction[]> {
+  const { data, error } = await supabase.from('highlight_reactions').select('id, user_id, emoji').eq('clip_id', clipId);
+  if (error) throw error;
+  return ((data ?? []) as Array<{ id: string; user_id: string; emoji: string }>).map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    emoji: r.emoji,
+  }));
+}
+
+export async function toggleHighlightReaction(clipId: string, userId: string, emoji: string, active: boolean): Promise<void> {
+  if (active) {
+    const { error } = await supabase.from('highlight_reactions').insert({ clip_id: clipId, user_id: userId, emoji });
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('highlight_reactions')
+      .delete()
+      .eq('clip_id', clipId)
+      .eq('user_id', userId)
+      .eq('emoji', emoji);
+    if (error) throw error;
+  }
+}
+
+export async function fetchHighlightComments(clipId: string): Promise<HighlightComment[]> {
+  const { data, error } = await supabase
+    .from('highlight_comments')
+    .select('id, user_id, body, created_at')
+    .eq('clip_id', clipId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as Array<{ id: string; user_id: string; body: string; created_at: string }>).map((c) => ({
+    id: c.id,
+    userId: c.user_id,
+    body: c.body,
+    createdAt: c.created_at,
+  }));
+}
+
+export async function addHighlightComment(clipId: string, userId: string, body: string): Promise<void> {
+  const { error } = await supabase.from('highlight_comments').insert({ clip_id: clipId, user_id: userId, body });
   if (error) throw error;
 }

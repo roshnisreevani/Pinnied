@@ -13,6 +13,7 @@ import { StreakBadge } from '@/components/feed/streak-badge';
 import { ContentMenu } from '@/components/moderation/content-menu';
 import { InitialsAvatar } from '@/components/profile/initials-avatar';
 import { GOLD, ON_DARK_SURFACE, RADII, WEIGHT, type ThemeColors } from '@/constants/style';
+import { aiModeColor, aiModeLabel } from '@/lib/ai-mode-style';
 import { useThemeColors } from '@/contexts/theme-context';
 import { STREAK_DISPLAY_THRESHOLD } from '@/lib/feed-streak';
 import type { ReportReason } from '@/lib/moderation';
@@ -166,6 +167,21 @@ export function SessionPostCard({
           </View>
         </View>
 
+        {/* AI highlight "trading card" treatment — a persona badge up top
+            and a stamped score ring in the media corner, so a post that
+            came from the AI feature reads as distinct at a glance instead
+            of blending in as a plain video post. */}
+        {post.aiMode ? (
+          <View style={[styles.aiBadge, { backgroundColor: aiModeColor(post.aiMode, colors) }]} pointerEvents="none">
+            <Text style={styles.aiBadgeText}>AI {aiModeLabel(post.aiMode).toUpperCase()}</Text>
+          </View>
+        ) : null}
+        {post.aiMode && post.aiVerdictScore !== null ? (
+          <View style={[styles.aiScoreRing, { borderColor: aiModeColor(post.aiMode, colors) }]} pointerEvents="none">
+            <Text style={[styles.aiScoreText, { color: aiModeColor(post.aiMode, colors) }]}>{post.aiVerdictScore}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.swipeHintWrap} pointerEvents="none">
           <Text style={styles.swipeHintText}>↑ swipe up to send to Banter</Text>
         </View>
@@ -295,6 +311,28 @@ function makeStyles(colors: ThemeColors) {
       bottom: 12,
     },
     captionText: { fontSize: 14, color: ON_DARK_SURFACE, lineHeight: 19, fontWeight: WEIGHT.medium },
+    aiBadge: {
+      position: 'absolute',
+      top: 54,
+      left: 12,
+      borderRadius: RADII.pill,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+    },
+    aiBadgeText: { fontSize: 10, fontWeight: WEIGHT.bold, color: '#FFFFFF', letterSpacing: 0.3 },
+    aiScoreRing: {
+      position: 'absolute',
+      top: 54,
+      right: 12,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      borderWidth: 2.5,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    aiScoreText: { fontSize: 13, fontWeight: WEIGHT.bold },
     footer: { padding: 12, gap: 8 },
     streakWrap: { alignItems: 'flex-start' },
     footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -83,7 +83,24 @@ async function uploadToGeminiFiles(
   return file.uri;
 }
 
-function promptFor(mode: string, sport: string | null, skillLevel: string | null): string {
+// Shared JSON contract every persona responds in — a verdict (score + punchy
+// one-liner, like a judge on a panel show) and a best-moment timestamp (the
+// single best/funniest instant in the clip) sit alongside the original
+// overall/notes shape, so the client can show a headline verdict instead of
+// only a bulleted list.
+const RESPONSE_CONTRACT = `Respond with ONLY valid JSON, no markdown fences, matching exactly:
+{"sport": "string", "overall": "one short sentence, max 100 chars", "verdict_score": number (0-10), "verdict_text": "one punchy quotable one-liner verdict, max 90 chars", "best_moment_seconds": number (the single best/funniest/most notable instant in the clip), "notes": [{"timestamp_seconds": number, "text": "string"}]}
+Include 4-6 notes, each tied to a genuinely different moment in the clip (0 to clip length in seconds) — do not repeat the same point twice in different words.`;
+
+// Builds a short "here's what you told them last time" addendum so the AI
+// can callback/reference past clips instead of every analysis starting from
+// zero — makes repeat use feel like an ongoing bit instead of a one-off.
+function callbackLine(pastLines: string[]): string {
+  if (pastLines.length === 0) return '';
+  return `\n\nFor context, here's what you said about this person's last ${pastLines.length} clip(s), oldest first — if it fits naturally, you can briefly callback/reference one (improvement, a repeated habit, a running joke), but don't force it: ${pastLines.map((l, i) => `(${i + 1}) "${l}"`).join(' ')}`;
+}
+
+function promptFor(mode: string, sport: string | null, skillLevel: string | null, callback: string): string {
   const sportLine = sport
     ? `The sport is ${sport}.`
     : `Figure out what sport/activity this is from the clip and include it as "sport" in your response.`;
@@ -91,11 +108,25 @@ function promptFor(mode: string, sport: string | null, skillLevel: string | null
   if (mode === 'roast') {
     return `You are watching a ~15 second clip of a friend playing a casual pickup sport (think office softball, weekend pickup basketball, a friend's first surf session) — never professional sports. ${sportLine}
 
-Write a funny, warm, self-deprecating ROAST — like a friend ribbing another friend over text, never mean-spirited, never about their body, always about the play itself. Keep it SIMPLE: everyday words, short punchy sentences, no fancy vocabulary or elaborate metaphors ("majestic", "championship level", "gravity is undefeated" — too much). Think one quick, obvious joke a friend would actually text, not a written bit.
+Write a funny, warm, self-deprecating ROAST — like a friend ribbing another friend over text, never mean-spirited, never about their body, always about the play itself. Keep it SIMPLE: everyday words, short punchy sentences, no fancy vocabulary or elaborate metaphors ("majestic", "championship level", "gravity is undefeated" — too much). Think one quick, obvious joke a friend would actually text, not a written bit. verdict_score is a joking "grade" out of 10 (low scores are part of the bit, not an insult) and verdict_text is the punchline that goes with it.${callback}
 
-Respond with ONLY valid JSON, no markdown fences, matching exactly:
-{"sport": "string", "overall": "one short funny sentence, max 100 chars, simple words", "notes": [{"timestamp_seconds": number, "text": "one quick funny line, max 70 chars, simple words"}]}
-Include 4-6 notes, each tied to a genuinely different moment in the clip (0 to clip length in seconds) — do not repeat the same joke or point twice in different words; each note should call out something distinct, but keep every single one short and simple.`;
+${RESPONSE_CONTRACT}`;
+  }
+
+  if (mode === 'hype') {
+    return `You are watching a ~15 second clip of a friend playing a casual pickup sport. ${sportLine}
+
+You are their biggest, most over-the-top HYPE MAN — a sneaker-commercial voiceover crossed with a friend who's had too much Gatorade. Treat every clip like it's the game-winning play, even if it's a beer-league free throw. Big energy, short exclamations, simple words shouted with confidence, zero actual criticism. verdict_score should basically always be high (7-10) — the bit is being delusionally hyped regardless of what actually happened — and verdict_text is a single triumphant tagline.${callback}
+
+${RESPONSE_CONTRACT}`;
+  }
+
+  if (mode === 'commentator') {
+    return `You are watching a ~15 second clip of a friend playing a casual pickup sport. ${sportLine}
+
+Write it like a live TV sports commentator doing play-by-play on a recreational game as if it were a championship final — dramatic, breathless, slightly absurd given the low stakes, but never mean. Simple words, short punchy sentences, present tense, like you're calling it live. verdict_score is your "post-game rating" and verdict_text is a single dramatic closing line, like a sign-off.${callback}
+
+${RESPONSE_CONTRACT}`;
   }
 
   const skillLine = skillLevel
@@ -104,11 +135,9 @@ Include 4-6 notes, each tied to a genuinely different moment in the clip (0 to c
 
   return `You are watching a ~15 second clip of someone playing a casual pickup sport. ${sportLine} ${skillLine}
 
-Write a real, useful CRITIQUE — specific, kind, and calibrated to their level: encouragement-first and simple for a beginner, sharper and more technical for a competitive player. Keep it SIMPLE and understandable: everyday words, short sentences, no jargon unless it's a basic term any casual player would already know. Never harsh, never generic ("keep practicing"), always tied to something you can actually see in the clip.
+Write a real, useful CRITIQUE — specific, kind, and calibrated to their level: encouragement-first and simple for a beginner, sharper and more technical for a competitive player. Keep it SIMPLE and understandable: everyday words, short sentences, no jargon unless it's a basic term any casual player would already know. Never harsh, never generic ("keep practicing"), always tied to something you can actually see in the clip. verdict_score is a genuine skill-execution rating out of 10 for what's shown in this specific clip, and verdict_text is your one-line bottom-line takeaway.${callback}
 
-Respond with ONLY valid JSON, no markdown fences, matching exactly:
-{"sport": "string", "overall": "one short, simple sentence summary, max 100 chars", "notes": [{"timestamp_seconds": number, "text": "one specific, actionable, easy-to-understand note, max 100 chars"}]}
-Include 4-6 notes, each tied to a genuinely different moment and different aspect of the technique (0 to clip length in seconds) — do not repeat the same observation twice in different words; each note should point out something distinct, but keep every single one short and simple.`;
+${RESPONSE_CONTRACT}`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -211,7 +240,27 @@ Deno.serve(async (req: Request) => {
     const bytes = new Uint8Array(await videoRes.arrayBuffer());
     const fileUri = await uploadToGeminiFiles(geminiApiKey, bytes, contentType);
 
-    const prompt = promptFor(clip.mode as string, clip.sport as string | null, clip.skill_level as string | null);
+    // Callback memory: pull the last 3 ready clips (any persona) for this
+    // user so the prompt can reference past verdicts/notes if it's natural.
+    const { data: pastClips } = await adminClient
+      .from('highlight_clips')
+      .select('verdict_text, overall_text')
+      .eq('user_id', user.id)
+      .eq('status', 'ready')
+      .neq('id', clipId)
+      .order('created_at', { ascending: false })
+      .limit(3);
+    const pastLines = ((pastClips ?? []) as { verdict_text: string | null; overall_text: string | null }[])
+      .map((c) => c.verdict_text ?? c.overall_text)
+      .filter((t): t is string => !!t)
+      .reverse();
+
+    const prompt = promptFor(
+      clip.mode as string,
+      clip.sport as string | null,
+      clip.skill_level as string | null,
+      callbackLine(pastLines)
+    );
 
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${geminiApiKey}`,
@@ -243,6 +292,9 @@ Deno.serve(async (req: Request) => {
               properties: {
                 sport: { type: 'STRING' },
                 overall: { type: 'STRING' },
+                verdict_score: { type: 'NUMBER' },
+                verdict_text: { type: 'STRING' },
+                best_moment_seconds: { type: 'NUMBER' },
                 notes: {
                   type: 'ARRAY',
                   items: {
@@ -255,7 +307,7 @@ Deno.serve(async (req: Request) => {
                   },
                 },
               },
-              required: ['overall', 'notes'],
+              required: ['overall', 'notes', 'verdict_score', 'verdict_text'],
             },
             thinkingConfig: { thinkingBudget: 0 },
           },
@@ -295,7 +347,14 @@ Deno.serve(async (req: Request) => {
         `No JSON object found in Gemini response (finishReason: ${finishReason}). Raw: ${rawText.slice(0, 180)}`
       );
     }
-    let parsed: { sport?: string; overall?: string; notes?: Array<{ timestamp_seconds: number; text: string }> };
+    let parsed: {
+      sport?: string;
+      overall?: string;
+      verdict_score?: number;
+      verdict_text?: string;
+      best_moment_seconds?: number;
+      notes?: Array<{ timestamp_seconds: number; text: string }>;
+    };
     try {
       parsed = JSON.parse(rawText.slice(jsonStart, jsonEnd + 1));
     } catch (parseErr) {
@@ -305,12 +364,18 @@ Deno.serve(async (req: Request) => {
 
     if (!parsed.overall || !Array.isArray(parsed.notes)) throw new Error('Malformed response from Gemini');
 
+    const clampedScore =
+      typeof parsed.verdict_score === 'number' ? Math.max(0, Math.min(10, Math.round(parsed.verdict_score))) : null;
+
     await adminClient
       .from('highlight_clips')
       .update({
         status: 'ready',
         overall_text: parsed.overall.slice(0, 200),
         sport: clip.sport ?? parsed.sport ?? null,
+        verdict_score: clampedScore,
+        verdict_text: parsed.verdict_text ? parsed.verdict_text.slice(0, 150) : null,
+        best_moment_seconds: typeof parsed.best_moment_seconds === 'number' ? parsed.best_moment_seconds : null,
         error_message: null,
       })
       .eq('id', clipId);
