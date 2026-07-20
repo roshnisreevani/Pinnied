@@ -117,12 +117,33 @@ export async function createHighlightClip(input: {
   return clipId;
 }
 
+/**
+ * supabase-js's FunctionsHttpError.message is always the generic "Edge
+ * Function returned a non-2xx status code" — the actual JSON body we send
+ * back (e.g. "Could not analyze this clip: Gemini error: ...", or the daily
+ * limit message) sits on error.context, an unread Response object. Reading
+ * it here is what makes Alert.alert show the real reason instead of that
+ * generic string.
+ */
+async function functionErrorDetail(error: unknown): Promise<string> {
+  const context = (error as { context?: Response })?.context;
+  if (context && typeof context.json === 'function') {
+    try {
+      const body = await context.json();
+      if (typeof body?.error === 'string') return body.error;
+    } catch {
+      // context wasn't JSON (or already consumed) — fall through to the
+      // generic message below rather than throwing over a cosmetic miss.
+    }
+  }
+  return error instanceof Error ? error.message : 'Could not start analysis';
+}
+
 /** Re-fires analysis for a clip stuck in 'pending' or that previously 'failed'. */
-export function retryHighlightAnalysis(clipId: string): Promise<{ error: Error | null }> {
-  return supabase.functions.invoke('analyze-highlight-clip', { body: { clipId } }).then(
-    ({ error }) => ({ error: error ? new Error(error.message) : null }),
-    (e) => ({ error: e instanceof Error ? e : new Error('Could not start analysis') })
-  );
+export async function retryHighlightAnalysis(clipId: string): Promise<{ error: Error | null }> {
+  const { error } = await supabase.functions.invoke('analyze-highlight-clip', { body: { clipId } });
+  if (!error) return { error: null };
+  return { error: new Error(await functionErrorDetail(error)) };
 }
 
 export async function fetchHighlightClip(clipId: string): Promise<HighlightClip | null> {
@@ -202,7 +223,7 @@ export async function sendHighlightMessage(clipId: string, message: string, quot
   const { data, error } = await supabase.functions.invoke('highlight-clip-chat', {
     body: { clipId, message, quotedNote },
   });
-  if (error) throw error;
+  if (error) throw new Error(await functionErrorDetail(error));
   return (data as { reply: string }).reply;
 }
 

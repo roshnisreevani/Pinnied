@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Flame, Plus, Target } from 'lucide-react-native';
+import { Flame, Mic, Plus, Target, Zap } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,7 +7,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { AnimatedPressable } from '@/components/ui/animated-pressable';
 import { RADII, WEIGHT, type ThemeColors } from '@/constants/style';
 import { useThemeColors } from '@/contexts/theme-context';
-import { fetchMyHighlightClips, type HighlightClip } from '@/lib/highlights';
+import { aiModeColor, aiModeLabel } from '@/lib/ai-mode-style';
+import { fetchMyHighlightClips, type HighlightClip, type HighlightMode } from '@/lib/highlights';
+
+const MODE_ICON: Record<HighlightMode, typeof Flame> = {
+  roast: Flame,
+  hype: Zap,
+  commentator: Mic,
+  critique: Target,
+};
 
 type Props = {
   userId: string;
@@ -81,12 +89,11 @@ export function HighlightsSection({ userId, refreshSignal }: Props) {
               style={styles.card}
               onPress={() => router.push(`/highlight/${clip.id}`)}>
               <View style={styles.cardIconRow}>
-                {clip.mode === 'roast' ? (
-                  <Flame size={14} color={colors.coral} strokeWidth={2} />
-                ) : (
-                  <Target size={14} color={colors.blue} strokeWidth={2} />
-                )}
-                <Text style={styles.cardMode}>{clip.mode === 'roast' ? 'Roast' : 'Critique'}</Text>
+                {(() => {
+                  const ModeIcon = MODE_ICON[clip.mode];
+                  return <ModeIcon size={14} color={aiModeColor(clip.mode, colors)} strokeWidth={2} />;
+                })()}
+                <Text style={styles.cardMode}>{aiModeLabel(clip.mode)}</Text>
               </View>
               <Text style={styles.cardSport} numberOfLines={1}>
                 {clip.sport ?? (clip.status === 'pending' ? 'Analyzing...' : 'Clip')}

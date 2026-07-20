@@ -7,7 +7,7 @@
 // exact moment being talked about — no frame overlays/annotations, Gemini
 // can't paint on video, it can only describe it in text tied to a time.
 //
-// Enforces a soft cap of 2 clip analyses per user per rolling 24h, purely
+// Enforces a soft cap of 4 clip analyses per user per rolling 24h, purely
 // to protect the shared free-tier quota (not a monetization gate yet).
 //
 // Needs GEMINI_API_KEY (same secret as caption-game-photo, reused here).
@@ -199,7 +199,7 @@ Deno.serve(async (req: Request) => {
   // gate (that's a later, separate decision). Counts this clip too, so "2
   // free a day" means this can be at most the 2nd clip in the last 24h.
   //
-  const DAILY_CAP = 2;
+  const DAILY_CAP = 4;
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { count } = await adminClient
     .from('highlight_clips')
@@ -210,7 +210,7 @@ Deno.serve(async (req: Request) => {
   if ((count ?? 0) > DAILY_CAP) {
     await adminClient
       .from('highlight_clips')
-      .update({ status: 'failed', error_message: "You've hit today's free limit (2 clips/day). Try again tomorrow." })
+      .update({ status: 'failed', error_message: "You've hit today's free limit (4 clips/day). Try again tomorrow." })
       .eq('id', clipId);
     return new Response(JSON.stringify({ error: 'Daily limit reached' }), { status: 429 });
   }
@@ -394,11 +394,15 @@ Deno.serve(async (req: Request) => {
     });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
+    const fullMessage = `Could not analyze this clip: ${detail}`.slice(0, 300);
     await adminClient
       .from('highlight_clips')
-      .update({ status: 'failed', error_message: `Could not analyze this clip: ${detail}`.slice(0, 300) })
+      .update({ status: 'failed', error_message: fullMessage })
       .eq('id', clipId);
     console.error('[analyze-highlight-clip]', e);
-    return new Response(JSON.stringify({ error: 'Could not analyze this clip' }), { status: 500 });
+    // Returning the same detailed message the DB row got (not a generic
+    // "Could not analyze this clip") so the client's retry Alert can show
+    // the real reason (e.g. Gemini overloaded) without a second round trip.
+    return new Response(JSON.stringify({ error: fullMessage }), { status: 500 });
   }
 });
