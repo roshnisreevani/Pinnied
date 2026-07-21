@@ -249,7 +249,13 @@ Deno.serve(async (req: Request) => {
     .from('highlight_clips')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
-    .gte('created_at', since);
+    .gte('created_at', since)
+    // Clips that failed (Gemini 503/429, bad upload, etc.) never actually
+    // completed an analysis — counting them against the cap means a run of
+    // shared-infra hiccups can lock a user out for 24h despite them getting
+    // zero real usage out of it. Only clips that succeeded or are actively
+    // in flight count toward the quota.
+    .neq('status', 'failed');
 
   if ((count ?? 0) > DAILY_CAP) {
     await adminClient
